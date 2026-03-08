@@ -47,3 +47,7 @@ Rules:
 - do not modify unrelated code
 - respect architecture boundaries
 - follow contracts strictly
+- use backend-engineer or frontend-engineer agent or implementation
+- use test-engineer agent for testing
+- use security-reviewer agent for security analysis
+- use code-reviewer agent for overall code review
