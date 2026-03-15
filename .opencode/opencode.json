@@ -31,4 +31,92 @@
     }
 
   }
+  "mcp": {
+    "context7": {
+      "enabled": true,
+      "headers": {
+	"CONTEXT7_API_KEY": ""
+      },
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "CopilotKit MCP": {
+      "type": "local",
+      "command": [
+	"npx",
+	"-y",
+	"mcp-remote",
+	"https://mcp.copilotkit.ai"
+      ],
+      "enabled": false,
+      "timeout": 30000
+    },
+    "deepwiki": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://mcp.deepwiki.com/mcp"
+    },
+    "serena": {
+      "command": [
+	"uvx",
+	"--from",
+	"git+https://github.com/oraios/serena",
+	"serena",
+	"start-mcp-server",
+	"--context",
+	"ide-assistant",
+	"--project",
+	"{cwd}",
+	"--enable-web-dashboard",
+	"false"
+      ],
+      "enabled": true,
+      "environment": {
+	"PYTHONUNBUFFERED": "1"
+      },
+      "type": "local"
+    },
+  },
+  "provider": {
+    "llama.cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama-server (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1"
+      },
+      "models": {
+        "qwen3.5-27b": {
+          "name": "Qwen3.5-27B",
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          }
+        },
+	"gpt-oss-120b": {
+	  "name": "gpt-oss-120b",
+	  "limit": {
+	    "context": 131072,
+	    "output": 65536
+	  }
+	}
+      }
+    }
+  },
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      ".git/**",
+      "**/*.min.js",
+      "**/*.map",
+      "**/*.lock",
+      ".venv/**",
+      ".opencode/**"
+    ]
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true
+  }
 }

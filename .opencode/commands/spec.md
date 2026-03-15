@@ -1,4 +1,4 @@
-Create a project specification.
+Analyze user requirements and produce structured specifications
 
 Steps:
 

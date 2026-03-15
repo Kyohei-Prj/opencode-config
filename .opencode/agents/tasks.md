@@ -12,8 +12,8 @@ Generate structured planning artifacts.
 
 Outputs:
 
-plan/phases.yaml  
-plan/tasks.yaml  
+plan/phases.yaml 
+plan/tasks.yaml
 plan/dag.yaml
 
 Tasks must contain:
