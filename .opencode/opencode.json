@@ -3,33 +3,85 @@
 
   "agent": {
 
+    // ── Stage 1: /spec ────────────────────────────────────────────────────
+    "requirements-analyst": {
+      "permission": { "skill": { "*": "allow" } }
+    },
+
+    // ── Stage 2: /design ─────────────────────────────────────────────────
+    "architecture-designer": {
+      "permission": { "skill": { "*": "allow" } }
+    },
+
+    // ── Stage 3: /plan ────────────────────────────────────────────────────
+    "phase-planner": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "deny", "task-decomposer": "allow" }
+      }
+    },
+    "task-decomposer": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "deny" }
+      }
+    },
+
+    // ── Stage 4: /implement ───────────────────────────────────────────────
+    "impl-orchestrator": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": {
+          "*": "deny",
+          "tdd-implementer": "allow",
+          "test-runner": "allow"
+        }
+      }
+    },
+    "tdd-implementer": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "deny" }
+      }
+    },
+    "test-runner": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "deny" }
+      }
+    },
+
+    // ── Stage 5: /review ─────────────────────────────────────────────────
+    // review-orchestrator reads code; dispatches code-reviewer + consolidator
+    "review-orchestrator": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": {
+          "*": "deny",
+          "code-reviewer": "allow",
+          "review-consolidator": "allow"
+        }
+      }
+    },
+    // code-reviewer: read-only; no write; reviews one task at a time
+    "code-reviewer": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "deny" }
+      }
+    },
+    // review-consolidator: write-only output; never reads source code
+    "review-consolidator": {
+      "permission": {
+        "skill": { "*": "allow" },
+        "task": { "*": "deny" }
+      }
+    },
+
+    // ── Built-in overrides ────────────────────────────────────────────────
     "plan": {
-      "mode": "primary",
-      "tools": {
-        "write": false,
-        "edit": false,
-        "bash": false
-      }
-    },
-
-    "build": {
-      "mode": "primary",
-      "tools": {
-        "write": true,
-        "edit": true,
-        "bash": true
-      }
-    },
-
-    "debug": {
-      "mode": "primary",
-      "tools": {
-        "write": true,
-        "edit": true,
-        "bash": true
-      }
+      "permission": { "skill": { "*": "allow" } }
     }
-
   },
   "mcp": {
     "context7": {
