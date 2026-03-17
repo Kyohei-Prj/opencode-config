@@ -48,6 +48,7 @@ specification derived from the task's acceptance criteria.
 **1.1 — Tests before code.**
 No implementation file may be created or modified until at least one test
 exists that will fail because the implementation does not yet exist.
+The test code should follow Arrange-Act-Assert (AAA) pattern when applicable.
 
 **1.2 — One test file per implementation unit.**
 Follow the project's existing test file naming and location convention:
