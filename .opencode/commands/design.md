@@ -2,7 +2,6 @@
 description: "Produce an architecture design document at docs/<feature>/architecture.md from an existing requirements.md"
 agent: architecture-designer
 subtask: true
-model: anthropic/claude-sonnet-4-20250514
 ---
 
 You are starting the architecture design phase for an existing feature specification.
