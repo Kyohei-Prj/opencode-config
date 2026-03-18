@@ -104,5 +104,4 @@ inconsistent state and must never happen.
 - Do not carry implementation details from one `@tdd-implementer` call
   into the next — start each invocation fresh with only task-scoped context
 - Do not commit if `@tdd-implementer` returned `failed` or `blocked`
-- Do not mark a phase Complete — `@test-runner` does that check; you apply
-  the status update only after `@test-runner` confirms all exit criteria pass
+- Do not let any task mark a phase Complete directly - phase completion belongs to this orchestrator after `@test-runner` confirms all exit criteria pass

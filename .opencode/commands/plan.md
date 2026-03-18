@@ -75,5 +75,5 @@ Task files written:
 ⚠️ Open questions requiring human input before Phase 1 begins:
   - <list any Q-1, Q-2 … items carried over from architecture>
 
-Next step: run /implement $ARGUMENTS phase1 task1 to begin implementation.
+Next step: run /implement $ARGUMENTS 1 to begin implementation.
 ```

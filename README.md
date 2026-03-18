@@ -34,7 +34,7 @@ committed, shippable code — structured as slash commands, sub-agents, and skil
 
 ```
 .opencode/
-├── opencode.jsonc
+├── opencode.json
 │
 ├── commands/
 │   ├── spec.md                              # Stage 1

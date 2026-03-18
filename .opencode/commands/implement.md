@@ -41,13 +41,14 @@ Read the Status field in `plans/${FEATURE}/phase${PHASE}.md`:
 - If `Pending` → update it to `In Progress` now, before any task work begins.
 - If `In Progress` → a previous run was interrupted. Read
   `plans/${FEATURE}/phase${PHASE}/impl-log.md` (if it exists) to determine
-  which tasks already have status `[x]` and resume from the first `[ ]` task.
+  which tasks already have status `[x]` and resume from the first blocked `[~]` task, or the first non-started `[ ]` task if none are blocked.
 
 ## Step 3 — Build the task queue
 
 From `plans/${FEATURE}/phase${PHASE}/tasks.md`, extract the ordered task list.
 Skip any task already marked `[x]` (completed in a prior run).
-The remaining tasks become the queue, in their existing order.
+If a task is marked `[~]`, treat it as the first task in the queue and do not advance past it until it is resolved.
+All remaining `[ ]` tasks after that become the rest of the queue, in order.
 
 Log the queue to the user:
 ```
@@ -55,7 +56,7 @@ Log the queue to the user:
   [ ] T-${PHASE}-01 · <title> · <effort>
   [ ] T-${PHASE}-02 · <title> · <effort>
   …
-  Resuming from: T-${PHASE}-NN  (if resuming)
+  Resuming from: T-${PHASE}-NN  (blocked `[~]`, if present; otherwise first `[ ]`)
 ```
 
 ## Step 4 — Execute tasks via sub-agents
@@ -97,6 +98,7 @@ Wait for `@tdd-implementer` to return a result object:
 2. Append an entry to `plans/${FEATURE}/phase${PHASE}/impl-log.md`
    (format defined by the `impl-log-writer` skill)
 3. `git add -A && git commit -m "<commit_message>"`
+   - If the commit fails becuase nothing was staged, log it and continue.
 4. Proceed to the next task
 
 **If `failed`**:
@@ -144,6 +146,8 @@ After all tasks in the queue are `[x]`:
    - Do NOT mark the phase Complete
    - Report which exit criterion failed
    - Leave the phase In Progress for the developer to investigate
+   
+4. The phase file Status is updated only here, after all tasks are complete and `@test-runner` confirms the phase exis criteria. No task should set phase completion directly.
 
 ## Step 6 — Success summary
 

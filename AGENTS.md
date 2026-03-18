@@ -6,9 +6,9 @@ This file provides global instructions for AI coding agents working in this repo
 
 The project follows an AI-driven development workflow:
 
-1. Requirements → docs/requirements.md
-2. Architecture → docs/architecture.md
-3. Task planning → plan/tasks.yaml
+1. Requirements → docs/<feature>/requirements.md
+2. Architecture → docs/<feature>/architecture.md
+3. Task planning → plan/<feature>/phase<N>/tasks.yaml
 4. Implementation using TDD
 5. Code review
 6. Integration tests

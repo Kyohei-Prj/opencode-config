@@ -233,8 +233,7 @@ If none: "No open questions for this phase."
 
 1. **File name**: `phase1.md`, `phase2.md` … (no zero-padding, no other naming).
 2. **Feature slug** in the frontmatter must match `docs/<slug>/` and `plans/<slug>/`.
-3. **Status** starts as `Pending`. Changes to `In Progress` when work begins,
-   `Complete` when all exit criteria are checked off — never by the planning agent.
+3. **Status** starts as `Pending`. The implementation workflow changes it to `In Progress` when work begins, then to `Complete` only after final phase verification passes - never by the planning agent.
 4. **Effort sizing**:
    - S = less than 1 day
    - M = 1–3 days

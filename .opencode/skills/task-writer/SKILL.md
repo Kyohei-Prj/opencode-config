@@ -32,7 +32,7 @@ ordered so that working top-to-bottom never produces a dependency conflict.
 > **Total tasks**: <count>
 > **Total estimated effort**: <sum of all task estimates>
 > **Created**: YYYY-MM-DD
-> **Status**: Not started | In progress | Complete
+> **Status**: Pending | In progress | Complete
 
 ---
 
@@ -43,8 +43,11 @@ listed — do not start a task until all its dependencies are marked `[x]`.
 
 Mark a task complete by checking its box:
 - `[ ]` → not started
-- `[~]` → in progress
+- `[~]` → blocked
 - `[x]` → complete
+
+There is no separate chckbox state for "in progress". The active task is tracked by the implementation orchestrator and impl-log.
+If a task is marked `[~]`, resolve that blockage before any later task proceeds.
 
 ---
 
@@ -241,7 +244,7 @@ categories (unless the phase genuinely has no work in that category — explain 
 | Business logic | "Implement `<Service>.<method>()` for `<use case>`" |
 | API / interface | "Implement `<METHOD> <path>` endpoint" |
 | Tests | "Add unit/integration tests for `<component>`" |
-| Phase exit gate | "Verify phase exit criteria and update phase status" |
+| Phase exit gate | "Verify phase exit criteria and completion handoff" |
 
 The last task in every task file must always be:
 
@@ -253,18 +256,17 @@ The last task in every task file must always be:
 > **Satisfies**: Phase <N> exit criteria
 > **Commit message**: `chore(<feature>): verify phase <N> complete`
 
-**What**: Run the full test suite, check all exit criteria in phase<N>.md §7,
-and mark the phase Status as Complete.
+**What**: Run the phase verification commands, confirm all exit criteria in phase<N> §7 are satisfied, and hand off to the implementation orchestrator for final phase completion. 
 
 **Files**:
 | Action | Path | Description |
 |--------|------|-------------|
-| Modify | `plans/<feature>/phase<N>.md` | Set Status to Complete, check all exit criteria |
+| Verify | `plans/<feature>/phase<N>.md` | Confirm all exit criteria are satisfied; do not update Status directly |
 
 **Acceptance**:
 - [ ] All exit criteria in `plans/<feature>/phase<N>.md` §7 are checked `[x]`
 - [ ] `<test command>` exits 0
-- [ ] Phase Status field updated to `Complete`
+- [ ] Phase is ready for `impl-orchestrator` + `test-runner` completion handling
 ```
 
 ---

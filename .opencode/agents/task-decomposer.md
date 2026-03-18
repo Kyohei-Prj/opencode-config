@@ -5,7 +5,7 @@ temperature: 0.15
 tools:
   write: true
   edit: true
-  bash: false
+  bash: true
 permission:
   edit: allow
   bash:

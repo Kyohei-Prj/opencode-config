@@ -5,7 +5,7 @@ temperature: 0.1
 tools:
   write: true
   edit: true
-  bash: false
+  bash: true
 permission:
   edit: allow
   bash:
@@ -61,7 +61,7 @@ by_lens:
   arch_conformance_findings     = findings where lens == "architecture_conformance"
 
 overall_verdict:
-  "approved"           — blocking_count == 0
+  "approved"           — blocking_count == 0 AND non_blocking_count == 0
   "approved_with_notes"— blocking_count == 0 AND non_blocking_count > 0
   "changes_required"   — blocking_count > 0
 ```

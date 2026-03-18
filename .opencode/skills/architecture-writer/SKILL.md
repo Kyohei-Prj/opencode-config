@@ -341,9 +341,6 @@ Before writing the file, verify:
 |----------|----------|----------------------------------|
 | Requirements | `docs/<feature>/requirements.md` | In Review or Approved |
 | **This document** | `docs/<feature>/architecture.md` | Draft |
-| Phase plan (next) | `docs/<feature>/phases.md` | Does not exist yet |
+| Phase plan (next) | `docs/<feature>/phase<N>.md` | Does not exist yet |
 
-The `phases.md` document (produced by the `/plan` command) will consume
-`## 9. Implementation Phases` from this document as its primary input.
-Write that section with enough detail that a task-breakdown agent needs
-no additional context beyond what appears in phases 9 and the component table.
+The phase plan documents (produced by the `/plan` command) will consume `## 9. Implementation Phases` from this document as their primary input and then produce `plans/<feature>/phase<N>/tasks.md` files for execution. Write that section with enough detail that a task-breakdown agent needs no additional context beyond what appears in phases 9 and the component table.
