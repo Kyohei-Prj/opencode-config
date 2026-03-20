@@ -13,6 +13,7 @@ An AI-driven development workflow for [OpenCode](https://opencode.ai/docs). A si
 - [Lanes](#lanes)
 - [The manifest](#the-manifest)
 - [Parallel builds](#parallel-builds)
+- [Git integration](#git-integration)
 - [Recovering from failures](#recovering-from-failures)
 - [Reference: workflow files](#reference-workflow-files)
 - [Reference: repository layout](#reference-repository-layout)
@@ -44,6 +45,8 @@ One file — `feature.yaml` — is the canonical source of truth throughout. Gen
 
 **Parallel by default.** The build stage computes a dependency graph (DAG) from your slice plan and executes independent slices in parallel waves. `--concurrency N` controls how many slices run simultaneously.
 
+**One commit per slice.** When all tasks in a slice are reviewed and approved, the build-orchestrator commits those changes to a `feature/<slug>` branch. The commit SHA is recorded in the manifest, tying every slice back to an auditable point in git history.
+
 **Clean recovery.** Every failure point has an explicit re-entry path. Interrupted builds resume from the last incomplete wave. Blocked verifications route individual findings through a scoped fix cycle.
 
 ---
@@ -65,12 +68,21 @@ That's it. The workflow is self-contained — no external dependencies beyond Op
 ```
 .opencode/
 ├── opencode.json               ← registers all commands, agents, and skills
-├── commands/                   ← 8 slash commands
-├── agents/                     ← 8 AI agents
-└── skills/
-    ├── behavioral/             ← 5 reasoning skills (loaded at agent definition time)
-    └── format/                 ← 4 output format skills (loaded at write time)
+├── commands/                   ← 8 slash commands (prompt templates)
+├── agents/                     ← 8 AI subagents
+└── skills/                     ← 9 skill folders, each containing a SKILL.md
+    ├── lane-classifier/
+    ├── slice-writer/
+    ├── tdd-cycle/
+    ├── task-review-standards/
+    ├── verify-checklist/
+    ├── manifest-writer/
+    ├── brief-writer/
+    ├── evidence-log-writer/
+    └── review-report-writer/
 ```
+
+Skills follow the [OpenCode skills format](https://opencode.ai/docs/skills/) — each skill is a folder containing a `SKILL.md` with YAML frontmatter and a prompt body. Agents are [OpenCode subagents](https://opencode.ai/docs/agents/) defined as markdown files with frontmatter (`mode: subagent`, `hidden: true`, `permission` blocks). Commands are [OpenCode custom commands](https://opencode.ai/docs/commands/) — markdown files with frontmatter and a prompt template body.
 
 ---
 
@@ -86,7 +98,7 @@ That's it. The workflow is self-contained — no external dependencies beyond Op
 # → explores codebase, writes design + task plan, generates brief.md
 
 /build passwordless-login --concurrency 2
-# → implements all slices in parallel waves, TDD + per-task review
+# → implements slices in parallel waves, commits each slice to feature/passwordless-login
 
 /verify passwordless-login
 # → checks manifest completeness, runs test suite, produces verdict
@@ -185,7 +197,7 @@ Use this when the design genuinely needs a separate sign-off pass before work is
 
 ### `/build <slug> [scope] [--concurrency N]`
 
-**Implements all planned tasks.** Reads the slice DAG, schedules slices into parallel waves, and runs each task through a red→green→refactor TDD cycle with per-task review.
+**Implements all planned tasks.** Reads the slice DAG, schedules slices into parallel waves, runs each task through a red→green→refactor TDD cycle with per-task review, and commits each completed slice to the `feature/<slug>` branch.
 
 ```
 /build passwordless-login                    # sequential, one slice at a time
@@ -197,7 +209,7 @@ Use this when the design genuinely needs a separate sign-off pass before work is
 What happens per task:
 1. `tdd-builder` writes a failing test, implements the minimum to pass, refactors
 2. `task-reviewer` checks acceptance criteria coverage, test quality, and scope
-3. On pass: task advances to `done`, next task begins
+3. On pass: task advances to `done`; when all tasks in the slice are done, the slice is committed to `feature/<slug>`
 4. On fail: rejection reason sent back to `tdd-builder` for a targeted retry
 
 If a task is rejected 3 times without passing, the build pauses and surfaces the issue for manual inspection.
@@ -235,8 +247,9 @@ Verdict is either `approved` (ready to merge) or `blocked` (one or more findings
 What happens:
 1. Finding is marked `acknowledged` (prevents re-raise mid-fix)
 2. Affected task(s) are reset and re-built through the full TDD + review cycle
-3. Verification runs scoped to the fixed finding
-4. If resolved and no blocking findings remain: verdict flips to `approved`
+3. A fix commit is added to the feature branch (`fix(<slice>): resolve <fnd-id>`)
+4. Verification runs scoped to the fixed finding
+5. If resolved and no blocking findings remain: verdict flips to `approved`
 
 Some findings don't require a code change — they require a manifest update (e.g. resolving an open question, marking a blocker resolved). For these, update `feature.yaml` directly and then run `/fix` — it detects the manifest-only case and skips the build cycle.
 
@@ -250,13 +263,13 @@ Some findings don't require a code change — they require a manifest update (e.
 /resume passwordless-login
 ```
 
-The orchestrator reads `execution.waves`, skips all completed work, and picks up exactly where execution stopped. Tasks that were mid-implementation get a fresh run log; tasks that were in review re-invoke the reviewer against the existing code.
+The orchestrator reads `execution.waves`, skips all completed work, and picks up exactly where execution stopped. Tasks that were mid-implementation get a fresh run log; tasks that were in review re-invoke the reviewer against the existing code. Already-committed slices are not re-committed.
 
 ---
 
 ## Lanes
 
-Lane choice is made once at `/intake` and affects the entire downstream workflow. The `lane-classifier` proposes a lane automatically — you confirm, cancel, or override.
+Lane choice is made once at `/intake` and affects the entire downstream workflow. The `lane-classifier` skill proposes a lane automatically — you confirm, cancel, or override.
 
 | Lane | When to use | Shape/slice path | Build rigor | Verification |
 |---|---|---|---|---|
@@ -292,7 +305,7 @@ After /shape-slice or /shape + /slice:
   + plan       slice DAG with tasks, context blocks, open question flags
 
 After /build:
-  + execution  wave schedule, run history, blockers
+  + execution  wave schedule, run history (with commit SHAs), slice_commits, blockers
 
 After /verify:
   + review     findings, verdict, final review summary
@@ -367,7 +380,7 @@ Wave 2:  magic-link-handler            ← depends on both wave 1 slices
 Wave 3:  login-ui                      ← depends on wave 2
 ```
 
-With `--concurrency 2`, wave 1 runs both slices simultaneously. Wave 2 starts only after both wave 1 slices are fully done (all tasks reviewed and approved).
+With `--concurrency 2`, wave 1 runs both slices simultaneously. Wave 2 starts only after both wave 1 slices are fully done (all tasks reviewed, approved, and committed).
 
 ### Concurrency model
 
@@ -380,7 +393,7 @@ With `--concurrency 2`, wave 1 runs both slices simultaneously. Wave 2 starts on
 
 ### Execution state in the manifest
 
-The wave schedule is written to `execution.waves` as the build runs:
+The wave schedule and slice commits are written to `execution` as the build runs:
 
 ```yaml
 execution:
@@ -396,7 +409,69 @@ execution:
       status: running
       started_at: "2026-03-18T14:45:00Z"
       completed_at: null
+  slice_commits:
+    auth-token: "a1b2c3d4e5f6..."
+    email-sender: "b2c3d4e5f6a1..."
 ```
+
+---
+
+## Git integration
+
+The build stage automatically maintains a `feature/<slug>` branch. No manual git operations are needed during the build.
+
+### Branch lifecycle
+
+On the first slice commit of a fresh build, `build-orchestrator` creates the branch:
+
+```
+git checkout -b feature/passwordless-login
+```
+
+Each subsequent slice commits to that branch. When all slices are complete, the branch contains one commit per slice, ready to open as a pull request.
+
+### Commit format
+
+Each slice produces a structured commit message:
+
+```
+feat(auth-token): Token generation and validation
+
+Tasks: task-001, task-002, task-003
+Run logs: auth-token-task-001-20260318-143022, ...
+Feature: passwordless-login
+```
+
+### Commit traceability in the manifest
+
+Every slice commit SHA is recorded in `execution.slice_commits`, and each run history entry carries the SHA of the commit it landed in:
+
+```yaml
+execution:
+  slice_commits:
+    auth-token: "a1b2c3d..."
+  run_history:
+    - run_id: auth-token-task-001-20260318-143022
+      slice: auth-token
+      task: task-001
+      status: pass
+      commit_sha: "a1b2c3d..."
+```
+
+This makes it possible to trace any finding from `/verify` back to the exact commit that introduced it.
+
+### Fix commits
+
+When `/fix` resolves a blocking finding, a new commit is added to the feature branch:
+
+```
+fix(auth-token): resolve fnd-001
+
+Finding: fnd-001 — Check 3.1 — token_expires_after_ttl test failing
+Run log: auth-token-task-002-20260318-160044
+```
+
+`execution.slice_commits` is updated to the new SHA.
 
 ---
 
@@ -408,7 +483,7 @@ execution:
 /resume passwordless-login
 ```
 
-The orchestrator reads `execution.waves`, skips complete waves, and restarts from the first incomplete wave. Tasks already `done` are not re-run.
+The orchestrator reads `execution.waves`, skips complete waves, and restarts from the first incomplete wave. Tasks already `done` are not re-run. Slices that were already committed are not re-committed.
 
 ### Verify returns blocked
 
@@ -427,7 +502,7 @@ Fix each blocking finding:
 /fix passwordless-login fnd-002
 ```
 
-Each fix runs the minimum affected build + review cycle, then scoped re-verification. When all blocking findings are resolved, the verdict automatically flips to `approved`.
+Each fix runs the minimum affected build + review cycle, commits the fix to the feature branch, then runs scoped re-verification. When all blocking findings are resolved, the verdict automatically flips to `approved`.
 
 ### Slice blocked by an open question
 
@@ -464,19 +539,21 @@ Inspect the run logs in `workflow/<slug>/runs/`, address the issue manually, the
 | `/shape-slice <slug>` | small, standard | Explores codebase, writes design + plan in one pass |
 | `/shape <slug>` | epic | Explores codebase, writes design, stops for sign-off |
 | `/slice <slug>` | epic | Breaks reviewed design into slice DAG |
-| `/build <slug>` | all | Parallel wave execution with TDD + per-task review |
+| `/build <slug>` | all | Parallel wave execution with TDD + per-task review + git commits per slice |
 | `/verify <slug>` | all | Manifest-first verification, produces shippability verdict |
 | `/resume <slug>` | all | Resumes interrupted build from last incomplete wave |
 | `/fix <slug> <fnd-id>` | all | Scoped fix cycle for a specific blocking finding |
 
 ### Agents
 
+All agents are OpenCode subagents (`mode: subagent`, `hidden: true`) — invoked by commands or other agents, never directly by the user.
+
 | Agent | Invoked by | What it does |
 |---|---|---|
 | `intake-analyst` | `/intake` | Classifies lane, seeds manifest, runs confirmation gate |
 | `solution-shaper` | `/shape`, `/shape-slice` | Explores codebase, completes problem + design sections |
 | `slice-planner` | `/slice`, `/shape-slice` | Builds slice DAG, assigns tasks, generates `brief.md` |
-| `build-orchestrator` | `/build`, `/resume` | Computes waves, fans out builders, manages retry |
+| `build-orchestrator` | `/build`, `/resume` | Computes waves, fans out builders, manages git commits per slice |
 | `tdd-builder` | `build-orchestrator` | Implements one task via red→green→refactor |
 | `task-reviewer` | `build-orchestrator` | Reviews each completed task before it can advance |
 | `feature-verifier` | `/verify` | Runs all verification checks, writes verdict |
@@ -484,7 +561,9 @@ Inspect the run logs in `workflow/<slug>/runs/`, address the issue manually, the
 
 ### Skills
 
-**Behavioral** (loaded at agent definition time — shape how agents reason):
+Skills follow the [OpenCode skills format](https://opencode.ai/docs/skills/): each skill is a folder under `.opencode/skills/` containing a `SKILL.md` with YAML frontmatter and a prompt body.
+
+**Behavioral** — shape how agents reason (loaded via the `skill` tool at agent start):
 
 | Skill | Used by |
 |---|---|
@@ -494,7 +573,7 @@ Inspect the run logs in `workflow/<slug>/runs/`, address the issue manually, the
 | `task-review-standards` | `task-reviewer` |
 | `verify-checklist` | `feature-verifier` |
 
-**Format** (loaded at output-write time — enforce output structure):
+**Format** — enforce output structure (loaded at write time):
 
 | Skill | Used by |
 |---|---|
@@ -529,17 +608,24 @@ Inspect the run logs in `workflow/<slug>/runs/`, address the issue manually, the
 │   ├── feature-verifier.md
 │   └── review-consolidator.md
 └── skills/
-    ├── behavioral/
-    │   ├── lane-classifier.md
-    │   ├── slice-writer.md
-    │   ├── tdd-cycle.md
-    │   ├── task-review-standards.md
-    │   └── verify-checklist.md
-    └── format/
-        ├── manifest-writer.md
-        ├── brief-writer.md
-        ├── evidence-log-writer.md
-        └── review-report-writer.md
+    ├── lane-classifier/
+    │   └── SKILL.md
+    ├── slice-writer/
+    │   └── SKILL.md
+    ├── tdd-cycle/
+    │   └── SKILL.md
+    ├── task-review-standards/
+    │   └── SKILL.md
+    ├── verify-checklist/
+    │   └── SKILL.md
+    ├── manifest-writer/
+    │   └── SKILL.md
+    ├── brief-writer/
+    │   └── SKILL.md
+    ├── evidence-log-writer/
+    │   └── SKILL.md
+    └── review-report-writer/
+        └── SKILL.md
 
 workflow/                          ← created when you run /intake
 └── <feature-slug>/
@@ -558,7 +644,7 @@ workflow/                          ← created when you run /intake
 
 **Lane** — the rigor level assigned at intake: `small`, `standard`, or `epic`. Controls exploration depth, shape/slice path, task counts, and verification thoroughness.
 
-**Slice** — a vertically cut, independently buildable and testable unit of work within a feature. Slices are the unit of parallelism in the build stage.
+**Slice** — a vertically cut, independently buildable and testable unit of work within a feature. Slices are the unit of parallelism in the build stage and the unit of git commits.
 
 **DAG** — directed acyclic graph. The slice plan is stored as a DAG where each slice declares its `depends_on` list. The build-orchestrator computes execution waves from this graph.
 
@@ -575,3 +661,7 @@ workflow/                          ← created when you run /intake
 **TDD cycle** — red (failing test) → green (minimum implementation) → refactor (clean up without changing behaviour). Every task goes through this loop. Evidence is captured in a run log.
 
 **Run log** — `workflow/<slug>/runs/<run-id>.md`. Records the red/green/refactor phases, test output, and notes for one task execution. Read-only once written; retried tasks get a new run log.
+
+**Feature branch** — `feature/<slug>`. Created automatically on the first slice commit of a build. Each completed slice adds one commit. Fix cycles add fix commits. The branch is ready to open as a pull request once `/verify` returns `approved`.
+
+**Slice commit** — a git commit made by `build-orchestrator` after all tasks in a slice pass review. Uses conventional commit format (`feat(<slice>): <title>`). The SHA is recorded in `execution.slice_commits` and in each affected run history entry.

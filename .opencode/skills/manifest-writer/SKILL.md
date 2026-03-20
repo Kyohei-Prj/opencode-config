@@ -179,6 +179,9 @@ execution:
       status: pass | fail | skip
       started_at: <ISO 8601>
       completed_at: <ISO 8601 | null>
+      commit_sha: <string | null>  # SHA of the slice commit; null until slice is committed
+  slice_commits:                 # one entry per committed slice; written after all tasks in the slice are done
+    <slice-slug>: <full commit SHA>
   blockers:
     - id: <blk-NNN>
       description: <string>
@@ -305,3 +308,5 @@ This table is the authoritative reference for which agents may write which field
 | `review.verdict` | `feature-verifier` | `feature-verifier` after every finding status change | `approved` (may revert to `blocked` if new findings raised) |
 | `execution.blockers[].resolved_at` | — | User (via manifest edit) | non-null value |
 | `plan.dag.<slice>.tasks[].phase` | `slice-planner` | `tdd-builder` (→ implementing, → reviewing), `task-reviewer` (→ done, → implementing), `build-orchestrator`/fix (→ planned, reset only) | `done` (except fix reset) |
+| `execution.slice_commits` | `build-orchestrator` | `build-orchestrator` (updated on fix) | — |
+| `execution.run_history[].commit_sha` | `build-orchestrator` | `build-orchestrator` (updated on fix) | — |

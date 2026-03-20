@@ -8,6 +8,14 @@ permission:
   bash:
     "cat workflow/*": allow
     "ls workflow/*": allow
+    "git checkout -b *": allow
+    "git checkout *": allow
+    "git branch *": allow
+    "git add *": allow
+    "git commit *": allow
+    "git status": allow
+    "git log *": allow
+    "git rev-parse *": allow
   task:
     "*": deny
     "tdd-builder": allow
@@ -94,7 +102,7 @@ for each task in slice (in order):
   or "done" to accept and continue.
 ```
 
-4. When all tasks in a slice are `done`, the slice is complete.
+4. When all tasks in a slice are `done`, commit the slice work to the feature branch (see **Git commit per slice** below). Record the commit SHA in `execution.slice_commits`. Then mark the slice complete.
 5. When all slices in the wave are complete (or blocked/paused), set `execution.waves[N].status` → `complete` (or `failed` if blocked), `completed_at` → now. Write immediately.
 
 ## Step 5 — Advance the frontier
@@ -118,6 +126,53 @@ Run logs:        workflow/<slug>/runs/
 
 Next: /verify <slug>
 ```
+
+## Git commit per slice
+
+When all tasks in a slice are `done` and the slice is complete, perform the following before advancing:
+
+1. **Ensure the feature branch exists.** On first slice commit of a fresh build, create a branch named `feature/<slug>` if it does not already exist:
+   ```
+   git checkout -b feature/<slug>
+   ```
+   On subsequent slices (branch already exists), ensure you are on it:
+   ```
+   git checkout feature/<slug>
+   ```
+
+2. **Stage the slice's files.** Stage only the files listed in `plan.dag.<slice>.context.files_touched`:
+   ```
+   git add <file1> <file2> ...
+   ```
+   If the tdd-builder modified files outside `files_touched` (noted in run logs), stage those too — do not silently omit them.
+
+3. **Commit with a structured message:**
+   ```
+   feat(<slice-slug>): <slice.title>
+
+   Tasks: <task-id>, <task-id>, ...
+   Run logs: <run-id>, <run-id>, ...
+   Feature: <feature.slug>
+   ```
+
+4. **Capture the commit SHA** and write it to `execution.slice_commits` in the manifest:
+   ```yaml
+   slice_commits:
+     <slice-slug>: <full commit SHA>
+   ```
+
+5. **Record the SHA in each affected run history entry** by adding `commit_sha: <SHA>` to all `execution.run_history` entries for this slice.
+
+**Fix-cycle commits:** when a fix cycle replaces a slice's work, amend or create a new commit on the feature branch. Use a message like:
+```
+fix(<slice-slug>): resolve <fnd-id>
+
+Finding: <fnd-id> — <one-line description>
+Run log: <run-id>
+```
+Update `execution.slice_commits[<slice-slug>]` to the new SHA.
+
+**Scoped builds** (single slice or task, not a fix cycle): commit only if all tasks in the targeted slice are `done` after the scoped build. Use the same commit format. Do not commit a partial slice.
 
 ## Scoped builds
 
