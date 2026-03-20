@@ -1,282 +1,111 @@
 ---
 name: review-report-writer
-description: "Canonical template and formatting rules for review report documents at plans/<feature>/phaseN/review.md. Load before writing any review report. Consumed by review-consolidator after all per-task code-reviewer findings are collected."
-license: MIT
+description: Generate workflow/<feature>/review.md from the review section of feature.yaml after /verify completes. Defines the verdict template, finding grouping order (blocking first), verdict rendering symbols, and rendering rules. review.md is a read-only view — never an orchestration input or source of finding IDs.
 compatibility: opencode
 metadata:
-  category: workflow
-  phase: review
-  prev-artifact: plans/<feature>/phaseN/impl-log.md
-  next-phase: implementation (next phase) or validate
+  used-by: feature-verifier, review-consolidator
+  load-at: output-write time
 ---
 
-# Review Report Writer Skill
+## Core rule
 
-This skill defines the exact template and rules for all
-`plans/<feature>/phase<N>/review.md` files.
+review.md is generated from the manifest. If review.md disagrees with feature.yaml, the manifest wins. Do not read review.md as an input to any subsequent command or as a source of finding IDs.
 
-The review report is the deliverable of the `/review` workflow. It is the
-authoritative record of what was found, how severe each finding is, and
-what must change before the phase is considered shippable. It is written
-by `review-consolidator` from the aggregated findings objects produced by
-per-task `code-reviewer` invocations.
+## When to generate
 
----
+Generate after `feature-verifier` has written the complete `review` section to `feature.yaml`, including `review.verdict` and `review.final_review`.
 
-## Document template
+Regenerate if `/fix` resolves findings and `/verify` is re-run scoped to those findings.
+
+## Template
 
 ```markdown
-# Code Review: Phase <N> — <Phase Name>
+# Review: <feature.title>
 
-> **Feature**: <feature-slug>
-> **Phase file**: [phase<N>.md](./phase<N>.md)  
-> **Verdict**: ✅ Approved | ✅ Approved with notes | 🔴 Changes required
-> **Reviewed**: YYYY-MM-DD
-> **Tasks reviewed**: <N>
-> **Files reviewed**: <N>
-> **Commits reviewed**: <N>
+**Verdict:** <review.verdict> — APPROVED | BLOCKED | PENDING
+**Checked:** <review.final_review.checked_at>
+**Checked by:** <review.final_review.checked_by>
 
 ---
 
 ## Summary
 
-| Severity | Count | Must fix before shipping? |
-|----------|-------|--------------------------|
-| 🔴 Blocking | N | Yes |
-| 🟡 Non-blocking | N | No — address in follow-up |
-| 🔵 Suggestion | N | No — optional |
-| **Total findings** | **N** | |
-
-| Lens | Result |
-|------|--------|
-| Spec conformance | ✅ Passed / ⚠️ N findings |
-| TDD quality | ✅ Passed / ⚠️ N findings |
-| Architecture conformance | ✅ Passed / ⚠️ N findings |
-
-| Task | Verdict |
-|------|---------|
-| T-<N>-01 · <title> | ✅ Passed |
-| T-<N>-02 · <title> | 🟡 1 non-blocking |
-| T-<N>-03 · <title> | 🔴 2 blocking, 1 non-blocking |
-
----
-
-## Verdict
-
-<!-- Choose one block and delete the others -->
-
-### ✅ Approved
-
-No blocking or non-blocking findings. Phase <N> is shippable.
-Suggestions are recorded below for optional follow-up.
-
----
-
-### ✅ Approved with notes
-
-No blocking findings. Phase <N> is shippable.
-<N> non-blocking finding(s) should be addressed in a follow-up task before
-the next phase begins. Suggestions are optional.
-
----
-
-### 🔴 Changes required
-
-<N> blocking finding(s) must be resolved before Phase <N> is shippable.
-
-To fix and re-review:
-1. Address every 🔴 blocking finding below
-2. Commit the fixes using the same conventional commit style
-3. Re-run: `/review <feature> <N>`
+<review.final_review.summary>
 
 ---
 
 ## Findings
 
-<!-- If no findings at all, write: "No findings. All tasks passed all three lenses." -->
+<if no findings>
+No findings.
+<else>
 
-### 🔴 Blocking findings
+<group findings by type: blocking first, then non-blocking, then suggestions>
 
-<!-- If none, write: "None." -->
+### Blocking (<count of blocking findings>)
 
-#### <F-N-NN-NN> · <Finding title>
+<for each blocking finding>
+#### <fnd.id> — <fnd.description>
 
-> **Task**: T-<N>-NN · <task title>  
-> **Lens**: Spec conformance | TDD quality | Architecture conformance  
-> **File**: `<path/to/file.ts>`  
-> **Lines**: <start>–<end>  
-> **References**: <ADR-N>, <FR-N>, <§section>
+**Status:** <fnd.status>
+**Slice:** <fnd.slice | "—">
+**Task:** <fnd.task | "—">
+**Raised:** <fnd.raised_at>
+<if resolved> **Resolved:** <fnd.resolved_at> by <fnd.resolved_by> </if>
 
-**Problem**
+---
+</for each>
 
-<Clear description of what is wrong and why it matters. Specific enough that
-a developer who did not write the code can understand it immediately. Reference
-the exact criterion, ADR, or architecture section violated.>
+### Non-blocking (<count>)
 
-**Required resolution**
+<for each non-blocking finding>
+- **<fnd.id>** `[<fnd.status>]` <fnd.description> _(slice: <fnd.slice | "—">)_
+</for each>
 
-<What must change to resolve this finding. Describe the outcome, not the
-implementation. "Add a test case that covers [criterion]" not "Here is the
-code to add".>
+### Suggestions (<count>)
+
+<for each suggestion finding>
+- **<fnd.id>** `[<fnd.status>]` <fnd.description>
+</for each>
+
+</if>
 
 ---
 
-<!-- repeat for each blocking finding -->
+## Checks run
 
-### 🟡 Non-blocking findings
-
-<!-- If none, write: "None." -->
-
-#### <F-N-NN-NN> · <Finding title>
-
-> **Task**: T-<N>-NN · <task title>  
-> **Lens**: Spec conformance | TDD quality | Architecture conformance  
-> **File**: `<path/to/file.ts>`  
-> **Lines**: <start>–<end>  
-> **References**: <ADR-N>, <FR-N>, <§section>
-
-**Problem**
-
-<Description of the issue.>
-
-**Suggested resolution**
-
-<What would resolve this finding. Non-binding — use judgement.>
+<for each check in review.final_review.checks_run>
+- <check>
+</for each>
 
 ---
 
-<!-- repeat for each non-blocking finding -->
+## Recommended next action
 
-### 🔵 Suggestions
-
-<!-- If none, write: "None." -->
-
-#### <F-N-NN-NN> · <Finding title>
-
-> **Task**: T-<N>-NN · <task title>  
-> **Lens**: Spec conformance | TDD quality | Architecture conformance  
-> **File**: `<path/to/file.ts>`  
-> **Lines**: <start>–<end>
-
-**Observation**
-
-<Description of the opportunity.>
+<review.final_review.recommended_next_action | "None">
 
 ---
 
-<!-- repeat for each suggestion -->
-
-## Per-task review results
-
-Summary of results by task with impl-log notes.
-
-| Task | Files | Overall | Blocking | Non-blocking | Suggestions | Impl-log notes |
-|------|-------|---------|----------|-------------|-------------|----------------|
-| T-<N>-01 · <title> | N | ✅ passed | 0 | 0 | 0 | — |
-| T-<N>-02 · <title> | N | 🟡 needs work | 0 | 1 | 1 | <note from impl-log> |
-| T-<N>-03 · <title> | N | 🔴 needs work | 2 | 1 | 0 | — |
-
----
-
-## Findings index
-
-Quick reference for all findings.
-
-| ID | Severity | Task | File | Title |
-|----|----------|------|------|-------|
-| F-<N>-NN-01 | 🔴 Blocking | T-<N>-NN | `path/to/file.ts` | <title> |
-| F-<N>-NN-02 | 🟡 Non-blocking | T-<N>-NN | `path/to/file.ts` | <title> |
-| F-<N>-NN-03 | 🔵 Suggestion | T-<N>-NN | `path/to/file.ts` | <title> |
-
-<!-- If no findings: "No findings." -->
-
----
-
-## Requirements traceability
-
-Which FR/NFR IDs does this phase cover, and what is their review status?
-
-| Requirement | Covered by tasks | Review status |
-|-------------|-----------------|---------------|
-| FR-1 | T-<N>-02, T-<N>-03 | ✅ Covered, no findings |
-| FR-2 | T-<N>-04 | ⚠️ Covered, 1 blocking finding (F-<N>-04-01) |
-| NFR-1 | T-<N>-05 | ✅ Covered, no findings |
-
----
-
-## Next steps
-
-<!-- Choose the appropriate block -->
-
-**If Approved or Approved with notes:**
-```
-Next: /implement <feature> <next-phase-number>
-```
-If there are non-blocking findings, create a follow-up task in
-`plans/<feature>/phase<next>/tasks.md` before running /implement.
-
-**If Changes required:**
-```
-1. Fix all 🔴 blocking findings
-2. Commit fixes using conventional commit style
-3. Re-run: /review <feature> <N>
+*Generated from feature.yaml. Do not edit directly.*
 ```
 
----
+## Verdict rendering
 
-## References
+| Verdict | Header style |
+|---|---|
+| `approved` | `✓ APPROVED` |
+| `blocked` | `✗ BLOCKED` |
+| `pending` | `… PENDING` |
 
-- [Phase <N> file](./phase<N>.md)
-- [Task list](./phase<N>/tasks.md)
-- [Implementation log](./phase<N>/impl-log.md)
-- [Architecture document](../../docs/<feature>/architecture.md)
-- [Requirements document](../../docs/<feature>/requirements.md)
-```
+## Rendering rules
 
----
-
-## Formatting rules
-
-1. **File name**: always `review.md`, inside `plans/<feature>/phase<N>/`.
-2. **Verdict** in frontmatter must match the body's Verdict section exactly.
-3. **Finding IDs** must appear in the findings index and the per-task table.
-   They must match the IDs in the findings objects from `code-reviewer`.
-4. **Findings order**: Blocking → Non-blocking → Suggestions.
-   Within each group: ascending by finding ID (F-N-NN-01 before F-N-NN-02).
-5. **Verdict value rules**:
-   - `✅ Approved` — zero blocking and zero non-blocking findings
-   - `✅ Approved with notes` — zero blocking, one or more non-blocking
-   - `🔴 Changes required` — one or more blocking findings
-6. **Per-task table** must include every task reviewed, in task ID order.
-7. **Requirements traceability table** must include every FR/NFR listed in
-   the phase file's §3.1 scope table.
-8. **"None."** must appear (not an empty section) when a severity group has
-   no findings.
-9. File must end with `## References` and a trailing newline.
-
----
-
-## Verdict decision matrix
-
-| Blocking count | Non-blocking count | Suggestion count | Verdict |
-|---------------|-------------------|-----------------|---------|
-| 0 | 0 | 0 | ✅ Approved |
-| 0 | 0 | ≥1 | ✅ Approved |
-| 0 | ≥1 | any | ✅ Approved with notes |
-| ≥1 | any | any | 🔴 Changes required |
-
----
-
-## Quality checklist
-
-Before writing the file, confirm:
-
-- [ ] Verdict is consistent with the finding counts in the summary table
-- [ ] Every finding ID from the findings objects appears in the report
-- [ ] No finding IDs are invented that did not come from code-reviewer
-- [ ] Findings are ordered: Blocking → Non-blocking → Suggestions
-- [ ] Every FR/NFR from the phase's §3.1 appears in the traceability table
-- [ ] Per-task table has a row for every task in the manifest
-- [ ] "None." written (not empty section) for groups with zero findings
-- [ ] Next steps section matches the verdict
-- [ ] File saved to `plans/<feature-slug>/phase<N>/review.md`
+1. **Blocking findings always appear first**, regardless of when they were raised.
+2. **Omit empty groups** — if there are no non-blocking findings, omit that section header entirely.
+3. **Resolved blocking findings** are still listed under blocking — show their resolved status inline. Resolved findings explain the history; they are not hidden.
+4. **Finding counts are derived** from the findings list in `feature.yaml` — do not copy stored counts.
+5. **Do not include** run history, wave state, or task-level detail in the review report. That lives in run logs and the manifest.
+6. **Recommended next action** maps to verdict as a default:
+   - `approved` → "Ready to merge."
+   - `blocked` → "Run `/fix <feature> <fnd-id>` for each blocking finding, then re-run `/verify`."
+   - `pending` → "Run `/verify <feature>` to complete verification."
+   Override the default if `final_review.recommended_next_action` is set in the manifest.

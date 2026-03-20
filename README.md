@@ -1,241 +1,577 @@
 # OpenCode Dev Workflow
 
-A complete AI-driven development pipeline from vague idea to reviewed,
-committed, shippable code — structured as slash commands, sub-agents, and skills.
+An AI-driven development workflow for [OpenCode](https://opencode.ai/docs). A single feature manifest file drives every stage — planning, implementation, review, and recovery — with full parallel build support and a clean re-entry path at every failure point.
+
+---
+
+## Table of contents
+
+- [How it works](#how-it-works)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Commands](#commands)
+- [Lanes](#lanes)
+- [The manifest](#the-manifest)
+- [Parallel builds](#parallel-builds)
+- [Recovering from failures](#recovering-from-failures)
+- [Reference: workflow files](#reference-workflow-files)
+- [Reference: repository layout](#reference-repository-layout)
+- [Concepts glossary](#concepts-glossary)
+
+---
+
+## How it works
+
+The workflow is a five-stage pipeline:
 
 ```
-/spec <idea>               →  docs/<feature>/requirements.md
-/design <feature>          →  docs/<feature>/architecture.md
-/plan <feature>            →  plans/<feature>/phase<N>.md
-                               plans/<feature>/phase<N>/tasks.md
-/implement <feature> <N>   →  working, committed, tested code
-                               plans/<feature>/phase<N>/impl-log.md
-/review <feature> <N>      →  plans/<feature>/phase<N>/review.md
+/intake <idea>          →  creates workflow/<feature>/feature.yaml
+/shape-slice <feature>  →  explores codebase, writes design + task plan
+/build <feature>        →  implements tasks in parallel waves, TDD + per-task review
+/verify <feature>       →  manifest-first verification, shippability verdict
+/fix <feature> <fnd-id> →  targeted fix cycle for any blocking finding
+```
+
+One file — `feature.yaml` — is the canonical source of truth throughout. Generated markdown files (`brief.md`, `review.md`, run logs) are read-only views derived from the manifest. If they ever disagree, the manifest wins.
+
+### Core design principles
+
+**Manifest-first.** Every agent reads and writes `feature.yaml`. No agent reads generated markdown as an input. This means any stage can be safely re-run, interrupted, or resumed without losing state.
+
+**Growing manifest.** The manifest starts slim at intake (three sections) and grows as stages complete. Sections are only added when they have real content — no null-filled placeholders from day one.
+
+**Lanes calibrate rigor.** Features are classified as `small`, `standard`, or `epic` at intake. Lane choice affects exploration depth, the shape/slice path, and verification thoroughness. The lane confirmation gate requires your explicit sign-off before anything is written.
+
+**Parallel by default.** The build stage computes a dependency graph (DAG) from your slice plan and executes independent slices in parallel waves. `--concurrency N` controls how many slices run simultaneously.
+
+**Clean recovery.** Every failure point has an explicit re-entry path. Interrupted builds resume from the last incomplete wave. Blocked verifications route individual findings through a scoped fix cycle.
+
+---
+
+## Installation
+
+Copy the `.opencode/` directory into your project root:
+
+```bash
+cp -r .opencode/ /path/to/your/project/
+cd /path/to/your/project
+opencode
+```
+
+That's it. The workflow is self-contained — no external dependencies beyond OpenCode itself.
+
+### What gets installed
+
+```
+.opencode/
+├── opencode.json               ← registers all commands, agents, and skills
+├── commands/                   ← 8 slash commands
+├── agents/                     ← 8 AI agents
+└── skills/
+    ├── behavioral/             ← 5 reasoning skills (loaded at agent definition time)
+    └── format/                 ← 4 output format skills (loaded at write time)
 ```
 
 ---
 
 ## Quick start
 
+### Standard feature (the common path)
+
 ```bash
-/spec add passwordless login via magic link
-/design passwordless-login
-/plan passwordless-login
-/implement passwordless-login 1
-/review passwordless-login 1
-# fix any 🔴 blocking findings, then:
-/implement passwordless-login 2
-/review passwordless-login 2
+/intake add passwordless login via magic link
+# → confirms lane, creates workflow/passwordless-login/feature.yaml
+
+/shape-slice passwordless-login
+# → explores codebase, writes design + task plan, generates brief.md
+
+/build passwordless-login --concurrency 2
+# → implements all slices in parallel waves, TDD + per-task review
+
+/verify passwordless-login
+# → checks manifest completeness, runs test suite, produces verdict
+```
+
+### Epic feature (large or architecturally significant)
+
+```bash
+/intake replace the authentication system
+# → classifies as epic, confirms lane
+
+/shape replace-auth-system
+# → deep codebase exploration, design decisions — stops for your review
+
+# Review workflow/replace-auth-system/feature.yaml, then:
+/slice replace-auth-system
+# → breaks the reviewed design into a slice DAG, generates brief.md
+
+/build replace-auth-system --concurrency 3
+/verify replace-auth-system
+```
+
+### Small feature (single-component change)
+
+```bash
+/intake add a loading spinner to the submit button
+# → classifies as small, confirms lane
+
+/shape-slice loading-spinner
+# → lightweight pass: minimal design, 1–2 slices, 1–3 tasks each
+
+/build loading-spinner
+/verify loading-spinner
 ```
 
 ---
 
-## Full file layout
+## Commands
+
+### `/intake <idea>`
+
+**The entry point for every feature.** Creates `workflow/<slug>/feature.yaml` from a plain-language idea.
+
+```
+/intake add passwordless login via magic link
+/intake "build a CSV export for the monthly activity report"
+```
+
+Before writing anything, the command pauses and shows:
+
+```
+Feature:   Passwordless Login
+Slug:      passwordless-login
+Lane:      standard
+Rationale: Classified as standard because it introduces a new auth flow touching API, email, and session layers.
+
+Confirm? [y / n / small / standard / epic]
+```
+
+Respond with `y` to accept, `n` to cancel, or type a lane name to override.
+
+---
+
+### `/shape-slice <slug>`
+
+**For small and standard lanes.** Explores the codebase and produces both the design and the task plan in a single pass.
+
+```
+/shape-slice passwordless-login
+```
+
+What it writes to the manifest:
+- `design` — codebase findings, decisions, components, rollout strategy, risks
+- `plan` — slice DAG with tasks, acceptance criteria, and context blocks
+
+What it generates:
+- `workflow/<slug>/brief.md` — human-readable summary of the plan
+
+---
+
+### `/shape <slug>` and `/slice <slug>`
+
+**For epic lanes only.** Splits the shape and slice stages so you can review the design before committing to a task plan.
+
+```
+/shape replace-auth-system
+# → writes design section, prints decisions for review, stops
+
+/slice replace-auth-system
+# → reads the reviewed design, writes plan section, generates brief.md
+```
+
+Use this when the design genuinely needs a separate sign-off pass before work is broken into tasks. For standard features, use `/shape-slice` — the extra round-trip adds ceremony without benefit.
+
+---
+
+### `/build <slug> [scope] [--concurrency N]`
+
+**Implements all planned tasks.** Reads the slice DAG, schedules slices into parallel waves, and runs each task through a red→green→refactor TDD cycle with per-task review.
+
+```
+/build passwordless-login                    # sequential, one slice at a time
+/build passwordless-login --concurrency 3   # up to 3 slices in parallel
+/build passwordless-login auth-token        # build one slice only
+/build passwordless-login task-003          # build one task only
+```
+
+What happens per task:
+1. `tdd-builder` writes a failing test, implements the minimum to pass, refactors
+2. `task-reviewer` checks acceptance criteria coverage, test quality, and scope
+3. On pass: task advances to `done`, next task begins
+4. On fail: rejection reason sent back to `tdd-builder` for a targeted retry
+
+If a task is rejected 3 times without passing, the build pauses and surfaces the issue for manual inspection.
+
+---
+
+### `/verify <slug>`
+
+**Produces the shippability verdict.** Checks the manifest for completeness before touching any code, then runs the test suite, and generates `review.md`.
+
+```
+/verify passwordless-login
+/verify passwordless-login --finding fnd-002   # re-verify after /fix
+```
+
+Verification stages (in order):
+1. **Execution completeness** — all tasks `done`, no open blockers, no unresolved blocking questions (manifest only)
+2. **Interface contracts** — produced/consumed interfaces consistent across slices (manifest + light code)
+3. **Test suite** — suite passes, acceptance criteria covered (code)
+4. **Design intent** — components and rollout strategy implemented (epic lane only)
+
+Verdict is either `approved` (ready to merge) or `blocked` (one or more findings must be fixed).
+
+---
+
+### `/fix <slug> <fnd-id>`
+
+**Resolves a specific blocking finding** from a failed verify without re-running the full build.
+
+```
+/fix passwordless-login fnd-001
+/fix passwordless-login fnd-002
+```
+
+What happens:
+1. Finding is marked `acknowledged` (prevents re-raise mid-fix)
+2. Affected task(s) are reset and re-built through the full TDD + review cycle
+3. Verification runs scoped to the fixed finding
+4. If resolved and no blocking findings remain: verdict flips to `approved`
+
+Some findings don't require a code change — they require a manifest update (e.g. resolving an open question, marking a blocker resolved). For these, update `feature.yaml` directly and then run `/fix` — it detects the manifest-only case and skips the build cycle.
+
+---
+
+### `/resume <slug>`
+
+**Continues an interrupted build** from the last incomplete wave. Use this instead of re-running `/build` after a crash, timeout, or blocked open question.
+
+```
+/resume passwordless-login
+```
+
+The orchestrator reads `execution.waves`, skips all completed work, and picks up exactly where execution stopped. Tasks that were mid-implementation get a fresh run log; tasks that were in review re-invoke the reviewer against the existing code.
+
+---
+
+## Lanes
+
+Lane choice is made once at `/intake` and affects the entire downstream workflow. The `lane-classifier` proposes a lane automatically — you confirm, cancel, or override.
+
+| Lane | When to use | Shape/slice path | Build rigor | Verification |
+|---|---|---|---|---|
+| `small` | Single-component change, hours of work | `/shape-slice` (lightweight) | 1–2 slices, 1–3 tasks each | Stages 1–3 |
+| `standard` | Multi-component feature, days of work | `/shape-slice` (full) | 2–5 slices, 2–5 tasks each | Stages 1–3 |
+| `epic` | Architectural change, weeks of work | `/shape` then `/slice` | 4–10 slices, 2–6 tasks each | Stages 1–4 |
+
+**When in doubt, round up.** An epic treated as standard misses the design sign-off gate. A standard treated as epic costs some extra ceremony. A standard treated as small gets under-designed.
+
+You can override the proposed lane at the confirmation gate by typing the lane name instead of `y`:
+
+```
+Confirm? [y / n / small / standard / epic]
+> standard    ← override
+```
+
+---
+
+## The manifest
+
+`workflow/<slug>/feature.yaml` is the single source of truth. It grows as stages complete — never pre-populated with empty sections.
+
+### What's in the manifest at each stage
+
+```
+After /intake:
+  meta         schema version, lane confirmation record
+  feature      slug, title, lane, status, summary, timestamps
+  problem      statement, goals, users, open questions (seeded)
+
+After /shape-slice or /shape + /slice:
+  + design     findings, decisions, components, rollout, risks
+  + plan       slice DAG with tasks, context blocks, open question flags
+
+After /build:
+  + execution  wave schedule, run history, blockers
+
+After /verify:
+  + review     findings, verdict, final review summary
+```
+
+### The manifest always wins
+
+Generated files are views, not inputs:
+
+| File | What it is |
+|---|---|
+| `workflow/<slug>/brief.md` | Human-readable plan summary (generated after `/slice`) |
+| `workflow/<slug>/review.md` | Shippability report (generated after `/verify`) |
+| `workflow/<slug>/runs/<run-id>.md` | Task execution evidence (generated during `/build`) |
+
+If any generated file disagrees with `feature.yaml`, ignore the generated file. Re-run the relevant command to regenerate it from the manifest.
+
+### Feature status lifecycle
+
+```
+intake_complete → shaping → shape_complete → slicing → slice_complete
+  → building → build_complete → verifying → verified
+                                                     ↘ blocked
+```
+
+The `feature.commands.next` field in the manifest always tells you what to run next.
+
+### Open questions
+
+Open questions seeded at intake or added during shape can block specific slices. A question with `blocks: true` halts the build-orchestrator when it reaches the affected slice.
+
+To unblock: update the question status in `feature.yaml` and run `/resume <slug>`:
+
+```yaml
+problem:
+  open_questions:
+    - id: oq-001
+      text: "Should magic links be single-use or time-bounded only?"
+      status: resolved       # was: open
+      resolved_by: "user"
+      blocks: true
+```
+
+---
+
+## Parallel builds
+
+The build stage computes a dependency graph from `plan.dag` and schedules independent slices into waves.
+
+### How waves work
+
+Given this DAG:
+
+```yaml
+plan:
+  dag:
+    auth-token:
+      depends_on: []
+    email-sender:
+      depends_on: []
+    magic-link-handler:
+      depends_on: [auth-token, email-sender]
+    login-ui:
+      depends_on: [magic-link-handler]
+```
+
+The orchestrator computes:
+
+```
+Wave 1:  auth-token, email-sender      ← no dependencies, run in parallel
+Wave 2:  magic-link-handler            ← depends on both wave 1 slices
+Wave 3:  login-ui                      ← depends on wave 2
+```
+
+With `--concurrency 2`, wave 1 runs both slices simultaneously. Wave 2 starts only after both wave 1 slices are fully done (all tasks reviewed and approved).
+
+### Concurrency model
+
+`--concurrency N` controls slice-level parallelism, not task-level. Tasks within a slice are always sequential — task-reviewer must approve task N before task N+1 begins.
+
+```
+/build passwordless-login --concurrency 1    # default: one slice at a time
+/build passwordless-login --concurrency 3    # up to 3 slices simultaneously
+```
+
+### Execution state in the manifest
+
+The wave schedule is written to `execution.waves` as the build runs:
+
+```yaml
+execution:
+  concurrency: 2
+  waves:
+    - wave: 1
+      slices: [auth-token, email-sender]
+      status: complete
+      started_at: "2026-03-18T14:00:00Z"
+      completed_at: "2026-03-18T14:45:00Z"
+    - wave: 2
+      slices: [magic-link-handler]
+      status: running
+      started_at: "2026-03-18T14:45:00Z"
+      completed_at: null
+```
+
+---
+
+## Recovering from failures
+
+### Build interrupted mid-wave
+
+```bash
+/resume passwordless-login
+```
+
+The orchestrator reads `execution.waves`, skips complete waves, and restarts from the first incomplete wave. Tasks already `done` are not re-run.
+
+### Verify returns blocked
+
+```
+Verdict: BLOCKED
+
+Blocking findings:
+  fnd-001  Check 3.1 — 2 tests failing in auth-token slice
+  fnd-002  Check 1.4 — open question oq-001 not resolved before build
+```
+
+Fix each blocking finding:
+
+```bash
+/fix passwordless-login fnd-001
+/fix passwordless-login fnd-002
+```
+
+Each fix runs the minimum affected build + review cycle, then scoped re-verification. When all blocking findings are resolved, the verdict automatically flips to `approved`.
+
+### Slice blocked by an open question
+
+```
+⚠ Slice magic-link-handler is blocked by open question oq-001:
+  "Should magic links be single-use or time-bounded only?"
+```
+
+1. Resolve the question in `feature.yaml`
+2. Run `/resume <slug>`
+
+### Task rejected repeatedly
+
+If a task is rejected 3 times by the task-reviewer, the build pauses:
+
+```
+⚠ Task task-003 in auth-token has failed review 3 times.
+  Last rejection: Acceptance criterion 2 (token expiry) has no test.
+```
+
+Inspect the run logs in `workflow/<slug>/runs/`, address the issue manually, then:
+- Set the task `phase` back to `reviewing` in `feature.yaml` to retry review only
+- Or set it back to `planned` to re-run the full TDD cycle
+
+---
+
+## Reference: workflow files
+
+### Commands
+
+| Command | Lane | What it does |
+|---|---|---|
+| `/intake <idea>` | all | Creates the initial manifest with lane confirmation gate |
+| `/shape-slice <slug>` | small, standard | Explores codebase, writes design + plan in one pass |
+| `/shape <slug>` | epic | Explores codebase, writes design, stops for sign-off |
+| `/slice <slug>` | epic | Breaks reviewed design into slice DAG |
+| `/build <slug>` | all | Parallel wave execution with TDD + per-task review |
+| `/verify <slug>` | all | Manifest-first verification, produces shippability verdict |
+| `/resume <slug>` | all | Resumes interrupted build from last incomplete wave |
+| `/fix <slug> <fnd-id>` | all | Scoped fix cycle for a specific blocking finding |
+
+### Agents
+
+| Agent | Invoked by | What it does |
+|---|---|---|
+| `intake-analyst` | `/intake` | Classifies lane, seeds manifest, runs confirmation gate |
+| `solution-shaper` | `/shape`, `/shape-slice` | Explores codebase, completes problem + design sections |
+| `slice-planner` | `/slice`, `/shape-slice` | Builds slice DAG, assigns tasks, generates `brief.md` |
+| `build-orchestrator` | `/build`, `/resume` | Computes waves, fans out builders, manages retry |
+| `tdd-builder` | `build-orchestrator` | Implements one task via red→green→refactor |
+| `task-reviewer` | `build-orchestrator` | Reviews each completed task before it can advance |
+| `feature-verifier` | `/verify` | Runs all verification checks, writes verdict |
+| `review-consolidator` | `feature-verifier` | Aggregates patterns across run history (>10 tasks) |
+
+### Skills
+
+**Behavioral** (loaded at agent definition time — shape how agents reason):
+
+| Skill | Used by |
+|---|---|
+| `lane-classifier` | `intake-analyst` |
+| `slice-writer` | `slice-planner` |
+| `tdd-cycle` | `tdd-builder` |
+| `task-review-standards` | `task-reviewer` |
+| `verify-checklist` | `feature-verifier` |
+
+**Format** (loaded at output-write time — enforce output structure):
+
+| Skill | Used by |
+|---|---|
+| `manifest-writer` | `intake-analyst`, `solution-shaper`, `slice-planner`, `build-orchestrator`, `feature-verifier` |
+| `brief-writer` | `slice-planner` |
+| `evidence-log-writer` | `tdd-builder` |
+| `review-report-writer` | `feature-verifier`, `review-consolidator` |
+
+---
+
+## Reference: repository layout
 
 ```
 .opencode/
 ├── opencode.json
-│
 ├── commands/
-│   ├── spec.md                              # Stage 1
-│   ├── design.md                            # Stage 2
-│   ├── plan.md                              # Stage 3
-│   ├── implement.md                         # Stage 4
-│   └── review.md                            # Stage 5
-│
+│   ├── intake.md
+│   ├── shape-slice.md
+│   ├── shape.md
+│   ├── slice.md
+│   ├── build.md
+│   ├── verify.md
+│   ├── resume.md
+│   └── fix.md
 ├── agents/
-│   ├── requirements-analyst.md              # Stage 1
-│   ├── architecture-designer.md             # Stage 2
-│   ├── phase-planner.md                     # Stage 3 orchestrator
-│   ├── task-decomposer.md                   # Stage 3 leaf
-│   ├── impl-orchestrator.md                 # Stage 4 orchestrator
-│   ├── tdd-implementer.md                   # Stage 4 leaf (one per task)
-│   ├── test-runner.md                       # Stage 4 leaf (phase exit check)
-│   ├── review-orchestrator.md               # Stage 5 orchestrator
-│   ├── code-reviewer.md                     # Stage 5 leaf (one per task)
-│   └── review-consolidator.md              # Stage 5 leaf (report writer)
-│
+│   ├── intake-analyst.md
+│   ├── solution-shaper.md
+│   ├── slice-planner.md
+│   ├── build-orchestrator.md
+│   ├── tdd-builder.md
+│   ├── task-reviewer.md
+│   ├── feature-verifier.md
+│   └── review-consolidator.md
 └── skills/
-    ├── requirements-writer/SKILL.md         # Stage 1 template
-    ├── architecture-writer/SKILL.md         # Stage 2 template
-    ├── phase-writer/SKILL.md                # Stage 3 template
-    ├── task-writer/SKILL.md                 # Stage 3 template
-    ├── tdd-cycle/SKILL.md                   # Stage 4 TDD rules
-    ├── impl-log-writer/SKILL.md             # Stage 4 log format
-    ├── review-standards/SKILL.md            # Stage 5 review lenses + findings format
-    └── review-report-writer/SKILL.md        # Stage 5 report template
+    ├── behavioral/
+    │   ├── lane-classifier.md
+    │   ├── slice-writer.md
+    │   ├── tdd-cycle.md
+    │   ├── task-review-standards.md
+    │   └── verify-checklist.md
+    └── format/
+        ├── manifest-writer.md
+        ├── brief-writer.md
+        ├── evidence-log-writer.md
+        └── review-report-writer.md
 
-docs/<feature>/
-├── requirements.md                          # /spec output
-└── architecture.md                          # /design output
-
-plans/<feature>/
-├── phase1.md                                # /plan output
-├── phase1/
-│   ├── tasks.md                             # /plan output
-│   ├── impl-log.md                          # /implement output
-│   └── review.md                            # /review output
-├── phase2.md
-└── phase2/
-    ├── tasks.md
-    ├── impl-log.md
-    └── review.md
+workflow/                          ← created when you run /intake
+└── <feature-slug>/
+    ├── feature.yaml               ← canonical source of truth
+    ├── brief.md                   ← generated after /slice
+    ├── review.md                  ← generated after /verify
+    └── runs/
+        └── <run-id>.md            ← generated per task during /build
 ```
 
 ---
 
-## Stage 1 — `/spec <idea>`
+## Concepts glossary
 
-| | |
-|---|---|
-| Agent | `requirements-analyst` |
-| Skill | `requirements-writer` |
-| Output | `docs/<feature>/requirements.md` |
+**Manifest** — `workflow/<slug>/feature.yaml`. The canonical source of truth. All agents read from and write to this file. Generated files are derived from it and never override it.
 
-Explores the codebase, expands a vague idea into a full spec (goals, non-goals,
-user stories, FR/NFR with priorities, acceptance criteria, open questions).
+**Lane** — the rigor level assigned at intake: `small`, `standard`, or `epic`. Controls exploration depth, shape/slice path, task counts, and verification thoroughness.
 
----
+**Slice** — a vertically cut, independently buildable and testable unit of work within a feature. Slices are the unit of parallelism in the build stage.
 
-## Stage 2 — `/design <feature>`
+**DAG** — directed acyclic graph. The slice plan is stored as a DAG where each slice declares its `depends_on` list. The build-orchestrator computes execution waves from this graph.
 
-| | |
-|---|---|
-| Agent | `architecture-designer` |
-| Skill | `architecture-writer` |
-| Input | `docs/<feature>/requirements.md` |
-| Output | `docs/<feature>/architecture.md` |
+**Wave** — a maximal set of slices all of whose dependencies are complete. Slices in the same wave can run in parallel up to the concurrency limit.
 
-Produces a 12-section architecture document: component diagrams (Mermaid),
-data schema, API contracts, security, ADRs, and phased implementation plan.
+**Task** — a concrete, testable unit of work within a slice. Tasks within a slice are sequential. Each task has acceptance criteria and goes through a full TDD cycle followed by per-task review.
 
----
+**Finding** — a specific issue recorded during `/verify`. Type is `blocking`, `non-blocking`, or `suggestion`. Only blocking findings prevent approval. Findings move through a lifecycle: `raised → acknowledged → resolved` (or `waived`).
 
-## Stage 3 — `/plan <feature>`
+**Open question** — an explicit unknown recorded in the manifest. Questions with `blocks: true` halt the build-orchestrator when it reaches the affected slice.
 
-| | |
-|---|---|
-| Orchestrator | `phase-planner` |
-| Leaf agent | `task-decomposer` (one per phase) |
-| Skills | `phase-writer`, `task-writer` |
-| Output | `plans/<feature>/phase<N>.md` + `plans/<feature>/phase<N>/tasks.md` |
+**Verdict** — the output of `/verify`: either `approved` (ready to merge) or `blocked` (one or more blocking findings unresolved).
 
-Breaks the architecture into phase files and atomic, dependency-ordered task
-lists. Tasks are sized S/M/L (max 4h), each with a conventional commit message
-and binary acceptance criteria.
+**TDD cycle** — red (failing test) → green (minimum implementation) → refactor (clean up without changing behaviour). Every task goes through this loop. Evidence is captured in a run log.
 
----
-
-## Stage 4 — `/implement <feature> <phase>`
-
-| | |
-|---|---|
-| Orchestrator | `impl-orchestrator` |
-| Leaf agents | `tdd-implementer` (one per task), `test-runner` (once per phase) |
-| Skills | `tdd-cycle`, `impl-log-writer` |
-| Output | Committed code + `plans/<feature>/phase<N>/impl-log.md` |
-
-Implements one phase task-by-task using strict TDD (RED→GREEN→REFACTOR→VERIFY).
-Each task runs in its own isolated sub-agent context to preserve context window.
-Supports resume after interruption via `impl-log.md`.
-
----
-
-## Stage 5 — `/review <feature> <phase>`
-
-| | |
-|---|---|
-| Orchestrator | `review-orchestrator` |
-| Leaf agents | `code-reviewer` (one per task), `review-consolidator` (once) |
-| Skills | `review-standards`, `review-report-writer` |
-| Input | Phase file + tasks.md + impl-log.md + architecture.md |
-| Output | `plans/<feature>/phase<N>/review.md` |
-
-Reviews a completed phase across three structured lenses. Produces a report
-with findings categorised by severity and a shippability verdict.
-
-### Three-agent pipeline
-
-```
-/review passwordless-login 1
-         │
-         ▼
-[review-orchestrator]           — reads manifest, dispatches per task
-  (read-only: no write/edit)
-         │
-         ├─▶ @code-reviewer  (T-1-01)  — 3 lenses, focused context
-         │       └─ returns findings object
-         │
-         ├─▶ @code-reviewer  (T-1-02)  — fresh context, task-scoped
-         │       └─ returns findings object
-         │
-         │   … (sequential, one per task)
-         │
-         └─▶ @review-consolidator      — findings objects only, no source code
-                 └─ writes plans/<feature>/phase1/review.md
-```
-
-### The three review lenses
-
-Every task is reviewed on three independent axes:
-
-| Lens | Question | Key checks |
-|------|----------|-----------|
-| **Spec conformance** | Does the code do what the task required? | Acceptance criteria coverage, file paths, FR/NFR satisfaction, commit message |
-| **TDD quality** | Are the tests an honest spec of behaviour? | Structure/naming, tautology detection, isolation, RED-first evidence |
-| **Architecture conformance** | Does the code match the agreed design? | Component location, layer discipline, ADR compliance, API contract, schema |
-
-### Finding severities
-
-| Severity | Meaning | Examples |
-|----------|---------|---------|
-| 🔴 **Blocking** | Must fix before shipping | ADR violation, missing test for acceptance criterion, wrong API status code, layer discipline breach |
-| 🟡 **Non-blocking** | Fix soon, doesn't block shipping | Missing error case test, non-descriptive test name, loose assertion |
-| 🔵 **Suggestion** | Optional improvement | Naming, extractable helper, test factory opportunity |
-
-### Verdict rules
-
-| Verdict | Condition |
-|---------|-----------|
-| ✅ Approved | Zero blocking and non-blocking findings |
-| ✅ Approved with notes | Zero blocking, one or more non-blocking |
-| 🔴 Changes required | One or more blocking findings |
-
-### Context isolation in review
-
-The same discipline as Stage 4: `@code-reviewer` gets only the current task's
-files and the architecture sections those files reference. It never sees other
-tasks' code. `@review-consolidator` never sees source code at all — only the
-findings objects. This keeps each invocation well within context limits
-regardless of how many tasks or files the phase contains.
-
----
-
-## Agent permission model
-
-| Agent | Write files | Bash | Spawns |
-|-------|------------|------|--------|
-| `requirements-analyst` | `docs/` | mkdir, find, ls | — |
-| `architecture-designer` | `docs/` | mkdir, find, ls, cat | @explore |
-| `phase-planner` | `plans/` | mkdir, find, ls, cat | @task-decomposer |
-| `task-decomposer` | `plans/` | mkdir, find, ls, cat | none |
-| `impl-orchestrator` | `plans/` | git add/commit/status, find, cat | @tdd-implementer, @test-runner |
-| `tdd-implementer` | `src/` (project) | test runners, lint, typecheck, cat, find | none |
-| `test-runner` | none (edit: deny) | test runners, lint, typecheck, cat | none |
-| `review-orchestrator` | none (edit: deny) | git log/diff, find, cat | @code-reviewer, @review-consolidator |
-| `code-reviewer` | none (edit: deny) | cat, find, ls, git show | none |
-| `review-consolidator` | `plans/` | mkdir only | none |
-
----
-
-## Installation
-
-```bash
-cp -r .opencode/ /path/to/your/project/
-cd /path/to/your/project
-opencode
-/init
-```
-
-Commit `.opencode/`, `docs/`, and `plans/` to version control.
-Review reports (`review.md`) are worth committing — they are the quality record.
+**Run log** — `workflow/<slug>/runs/<run-id>.md`. Records the red/green/refactor phases, test output, and notes for one task execution. Read-only once written; retried tasks get a new run log.

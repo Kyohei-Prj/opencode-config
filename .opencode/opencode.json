@@ -1,174 +1,96 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-
-  "agent": {
-
-    // ── Stage 1: /spec ────────────────────────────────────────────────────
-    "requirements-analyst": {
-      "permission": { "skill": { "*": "allow" } }
+  "$schema": "https://opencode.ai/config.schema.json",
+  "commands": {
+    "intake": {
+      "path": "commands/intake.md"
     },
-
-    // ── Stage 2: /design ─────────────────────────────────────────────────
-    "architecture-designer": {
-      "permission": { "skill": { "*": "allow" } }
+    "shape-slice": {
+      "path": "commands/shape-slice.md"
     },
-
-    // ── Stage 3: /plan ────────────────────────────────────────────────────
-    "phase-planner": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": { "*": "deny", "task-decomposer": "allow" }
-      }
+    "shape": {
+      "path": "commands/shape.md"
     },
-    "task-decomposer": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": { "*": "deny" }
-      }
+    "slice": {
+      "path": "commands/slice.md"
     },
-
-    // ── Stage 4: /implement ───────────────────────────────────────────────
-    "impl-orchestrator": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": {
-          "*": "deny",
-          "tdd-implementer": "allow",
-          "test-runner": "allow"
-        }
-      }
+    "build": {
+      "path": "commands/build.md"
     },
-    "tdd-implementer": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": { "*": "deny" }
-      }
+    "verify": {
+      "path": "commands/verify.md"
     },
-    "test-runner": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": { "*": "deny" }
-      }
+    "resume": {
+      "path": "commands/resume.md"
     },
-
-    // ── Stage 5: /review ─────────────────────────────────────────────────
-    // review-orchestrator reads code; dispatches code-reviewer + consolidator
-    "review-orchestrator": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": {
-          "*": "deny",
-          "code-reviewer": "allow",
-          "review-consolidator": "allow"
-        }
-      }
+    "fix": {
+      "path": "commands/fix.md"
+    }
+  },
+  "agents": {
+    "intake-analyst": {
+      "path": "agents/intake-analyst.md"
     },
-    // code-reviewer: read-only; no write; reviews one task at a time
-    "code-reviewer": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": { "*": "deny" }
-      }
+    "solution-shaper": {
+      "path": "agents/solution-shaper.md"
     },
-    // review-consolidator: write-only output; never reads source code
+    "slice-planner": {
+      "path": "agents/slice-planner.md"
+    },
+    "build-orchestrator": {
+      "path": "agents/build-orchestrator.md"
+    },
+    "tdd-builder": {
+      "path": "agents/tdd-builder.md"
+    },
+    "task-reviewer": {
+      "path": "agents/task-reviewer.md"
+    },
+    "feature-verifier": {
+      "path": "agents/feature-verifier.md"
+    },
     "review-consolidator": {
-      "permission": {
-        "skill": { "*": "allow" },
-        "task": { "*": "deny" }
-      }
-    },
-
-    // ── Built-in overrides ────────────────────────────────────────────────
-    "plan": {
-      "permission": { "skill": { "*": "allow" } }
+      "path": "agents/review-consolidator.md"
     }
   },
-  "mcp": {
-    "context7": {
-      "enabled": true,
-      "headers": {
-	"CONTEXT7_API_KEY": ""
+  "skills": {
+    "behavioral": {
+      "note": "Load at agent definition time \u2014 shape how agents reason",
+      "lane-classifier": {
+        "path": "skills/lane-classifier/SKILL.md"
       },
-      "type": "remote",
-      "url": "https://mcp.context7.com/mcp"
-    },
-    "CopilotKit MCP": {
-      "type": "local",
-      "command": [
-	"npx",
-	"-y",
-	"mcp-remote",
-	"https://mcp.copilotkit.ai"
-      ],
-      "enabled": false,
-      "timeout": 30000
-    },
-    "deepwiki": {
-      "enabled": false,
-      "type": "remote",
-      "url": "https://mcp.deepwiki.com/mcp"
-    },
-    "serena": {
-      "command": [
-	"uvx",
-	"--from",
-	"git+https://github.com/oraios/serena",
-	"serena",
-	"start-mcp-server",
-	"--context",
-	"ide-assistant",
-	"--project",
-	"{cwd}",
-	"--enable-web-dashboard",
-	"false"
-      ],
-      "enabled": true,
-      "environment": {
-	"PYTHONUNBUFFERED": "1"
+      "slice-writer": {
+        "path": "skills/slice-writer/SKILL.md"
       },
-      "type": "local"
-    },
-  },
-  "provider": {
-    "llama.cpp": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "llama-server (local)",
-      "options": {
-        "baseURL": "http://127.0.0.1:8080/v1"
+      "tdd-cycle": {
+        "path": "skills/tdd-cycle/SKILL.md"
       },
-      "models": {
-        "qwen3.5-27b": {
-          "name": "Qwen3.5-27B",
-          "limit": {
-            "context": 131072,
-            "output": 65536
-          }
-        },
-	"gpt-oss-120b": {
-	  "name": "gpt-oss-120b",
-	  "limit": {
-	    "context": 131072,
-	    "output": 65536
-	  }
-	}
+      "task-review-standards": {
+        "path": "skills/task-review-standards/SKILL.md"
+      },
+      "verify-checklist": {
+        "path": "skills/verify-checklist/SKILL.md"
+      }
+    },
+    "format": {
+      "note": "Load at output-write time \u2014 enforce output structure only",
+      "manifest-writer": {
+        "path": "skills/manifest-writer/SKILL.md"
+      },
+      "brief-writer": {
+        "path": "skills/brief-writer/SKILL.md"
+      },
+      "evidence-log-writer": {
+        "path": "skills/evidence-log-writer/SKILL.md"
+      },
+      "review-report-writer": {
+        "path": "skills/review-report-writer/SKILL.md"
       }
     }
   },
-  "watcher": {
-    "ignore": [
-      "node_modules/**",
-      "dist/**",
-      "build/**",
-      ".git/**",
-      "**/*.min.js",
-      "**/*.map",
-      "**/*.lock",
-      ".venv/**",
-      ".opencode/**"
-    ]
-  },
-  "compaction": {
-    "auto": true,
-    "prune": true
+  "workflow": {
+    "manifest_wins": true,
+    "generated_files_are_readonly": true,
+    "canonical_source": "workflow/<feature>/feature.yaml",
+    "note": "Generated markdown files (brief.md, review.md, runs/*.md) are derived views. If they disagree with feature.yaml, the manifest wins. Never treat generated files as orchestration inputs."
   }
 }

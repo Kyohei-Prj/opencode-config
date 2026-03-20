@@ -1,290 +1,150 @@
 ---
 name: tdd-cycle
-description: "Defines the strict TDD cycle (Red → Green → Refactor → Verify) that tdd-implementer must follow for every task. Covers test-first rules, implementation constraints, refactor discipline, and verification gates. Load before implementing any task."
-license: MIT
+description: Implement a task using red-green-refactor-evidence. Write a failing test first, implement the minimum to pass, refactor without changing behaviour, then capture the run log. Each phase has a distinct exit condition. Stop and raise a blocker rather than working around any obstacle silently.
 compatibility: opencode
 metadata:
-  category: workflow
-  phase: implementation
-  agent: tdd-implementer
+  used-by: tdd-builder
+  load-at: agent definition time
 ---
 
-# TDD Cycle Skill
+## What I do
 
-This skill is the authoritative definition of the Test-Driven Development
-cycle used in this project's implementation workflow. Every `tdd-implementer`
-invocation must follow this cycle exactly, for every task, without exception.
+Define the red → green → refactor → evidence loop used to implement each task. Every task must produce a passing test suite and a completed run log before it is considered done.
 
----
-
-## The four-phase cycle
+## The loop
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│   RED ──────▶ GREEN ──────▶ REFACTOR ──────▶ VERIFY        │
-│    │            │               │               │           │
-│  Write        Write           Clean          Run full       │
-│  failing      minimum         without        suite +        │
-│  tests        impl to         breaking       types +        │
-│  first        pass tests      tests          lint           │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+red → green → refactor → evidence
 ```
 
-A task is complete only after all four phases pass. You may not skip or
-reorder phases.
+Each phase has a distinct goal and exit condition. None are optional.
 
----
+## Phase 1 — Red
 
-## Phase 1 — RED: Write failing tests
+**Goal:** Write a failing test that precisely describes the acceptance criterion being implemented.
 
-### Purpose
-Specify the behaviour before implementing it. Tests are the executable
-specification derived from the task's acceptance criteria.
+### Procedure
 
-### Rules
+1. Read the task's `acceptance_criteria` from the manifest.
+2. For each criterion, write the minimum test that would pass if and only if that criterion is met.
+3. Run the tests. Confirm they fail for the right reason — not a compile error, not a missing import, but a logical failure that the implementation will fix.
+4. If a test fails for the wrong reason (import error, syntax error, missing fixture), fix the test infrastructure first. Do not proceed to green with a test that fails for the wrong reason.
 
-**1.1 — Tests before code.**
-No implementation file may be created or modified until at least one test
-exists that will fail because the implementation does not yet exist.
-The test code should follow Arrange-Act-Assert (AAA) pattern when applicable.
+### What makes a good red test
 
-**1.2 — One test file per implementation unit.**
-Follow the project's existing test file naming and location convention:
+- Tests one thing. One assertion or one logical group of related assertions.
+- Fails with a message that names what's missing ("expected token to be signed with RS256, got HS256").
+- Does not test implementation details — tests the contract (inputs → outputs, side effects).
+- Uses real types and interfaces where they exist. Stubs and mocks are acceptable for external dependencies (network, filesystem, clock) but not for in-process logic.
 
-| Convention | Example |
-|------------|---------|
-| `*.test.ts` co-located | `src/auth/token.test.ts` |
-| `*.spec.ts` co-located | `src/auth/token.spec.ts` |
-| `__tests__/` directory | `src/auth/__tests__/token.ts` |
-| `tests/` mirror | `tests/auth/token.test.ts` |
-| `_test.go` suffix | `auth/token_test.go` |
-| `test_*.py` prefix | `tests/test_token.py` |
+### Exit condition
 
-If unsure, check two existing test files in the project and match their pattern.
+At least one failing test per acceptance criterion. Record test names and failure messages in the run log under "Red — test written".
 
-**1.3 — Map acceptance criteria to test cases 1:1.**
-Each acceptance criterion in the task block must produce at least one test case.
-Write the test name to match the criterion:
+## Phase 2 — Green
 
-```typescript
-// Acceptance: POST /auth/magic-link with valid email returns 202
-it('returns 202 when email is valid', async () => { … })
+**Goal:** Write the minimum implementation to make the failing tests pass. Nothing more.
 
-// Acceptance: POST /auth/magic-link with invalid email returns 400
-it('returns 400 with error message when email is invalid', async () => { … })
-```
+### Procedure
 
-**1.4 — Include edge cases for every happy-path test.**
-For each happy-path acceptance criterion, also write:
-- One test for the primary error case
-- One test for the boundary/edge case if one exists
+1. Implement only what is needed to satisfy the failing tests.
+2. Do not add error handling, logging, configuration, or features not covered by a test. These come in refactor or in a later task.
+3. Run the full test suite — not just the new tests. No regressions allowed.
+4. If a regression is introduced, fix it before moving to refactor.
 
-**1.5 — Run tests immediately. Confirm they fail.**
-After writing tests, run them with the narrowest test command possible:
-```bash
-npm test -- --testPathPattern=<file-pattern>
-```
-Expected outcomes that confirm RED:
-- Test runner reports `N failed` — ✅ correct RED state
-- Test runner reports `cannot find module` — ✅ acceptable, file not created yet
-- Test runner reports `N passed` — ❌ tests are tautological, rewrite them
+### Discipline
 
-**1.6 — Do not write implementation code in test files.**
-Test helpers, fixtures, and factories are allowed. Business logic is not.
+Green phase is about correctness, not cleanliness. The code is allowed to be ugly. The only requirement is that the tests pass.
 
----
+**Do not:**
+- Add untested behaviour "while you're in here"
+- Refactor existing code in the same commit as making tests pass
+- Leave tests skipped or marked as pending
 
-## Phase 2 — GREEN: Minimum implementation
+### Exit condition
 
-### Purpose
-Make the failing tests pass with the least possible code. Resist all urge to
-build more than the tests demand.
+All new tests pass. No existing tests regressed. Record the summary test output in the run log under "Green — implementation".
 
-### Rules
+## Phase 3 — Refactor
 
-**2.1 — Implement only what the failing tests require.**
-If a test for feature A is failing, do not implement feature B while you are
-at it, even if B is trivially easy. B has its own task.
+**Goal:** Improve the structure of the code without changing its behaviour.
 
-**2.2 — Run tests after every meaningful change.**
-"Meaningful change" = any modification to an implementation file. The feedback
-loop must be tight. Do not write 50 lines then run tests; write 5–10 lines,
-run tests, iterate.
+### Procedure
 
-**2.3 — Three-strike rule.**
-If tests are still failing after 3 distinct implementation attempts for the
-same failing test:
-- Stop implementing
-- Return `status: "failed"` to the orchestrator with a detailed `failure_reason`
-- Do not attempt a fourth approach
+1. Re-read the green implementation with fresh eyes.
+2. Identify: duplication, unclear naming, violation of project conventions, unnecessary complexity.
+3. Refactor one concern at a time. Run tests after each change.
+4. If refactoring reveals a missing test (behaviour that was implicitly assumed), write the test first — you've found a red phase that was missed.
 
-**2.4 — Minimal stubs for external dependencies.**
-If the task requires a method that calls an external service (email, DB, API),
-write a minimal stub/mock for test purposes — do not make real external calls
-from tests. The mock should be the simplest thing that makes the test pass.
+### What counts as refactor
 
-**2.5 — No global state mutations in tests.**
-Each test must be independently runnable. Use `beforeEach`/`afterEach` to
-set up and tear down state. Never rely on test execution order.
+- Rename variables, functions, or types for clarity
+- Extract a well-named helper function
+- Consolidate duplicated logic
+- Align with project conventions (naming, file structure, import style)
+- Remove dead code introduced during green
 
-**2.6 — Implementation files must match the paths in the task's Files table.**
-Do not create files at different paths than specified. If the architecture
-specifies `src/features/auth/token.repository.ts`, that is the exact path.
+### What does not count as refactor (do these in a separate task)
 
----
+- Adding new behaviour
+- Changing error handling strategy
+- Changing the public interface of a component
+- Performance optimisation (unless a test covers it)
 
-## Phase 3 — REFACTOR: Clean without breaking
+### When to skip
 
-### Purpose
-Remove duplication, improve names, add necessary comments. The behaviour
-must not change.
+If the green implementation is already clean — genuinely, not as an excuse — record "none" in the run log and move on. Forced refactoring for its own sake is waste.
 
-### Rules
+### Exit condition
 
-**3.1 — Run tests before and after every refactor change.**
-If tests were green before a refactor, they must be green after. If they break,
-undo the refactor immediately.
+Tests still pass. Run log updated under "Refactor". Code meets project conventions.
 
-**3.2 — Allowed refactoring operations:**
-- Rename variables, functions, types to be clearer
-- Extract duplicated logic into a private helper (within the same file)
-- Add JSDoc / docstring comments for exported functions
-- Reorder code within a function for readability
-- Remove dead code introduced during GREEN (temporary scaffolding, debug logs)
-- Fix code style to match the project's lint rules
+## Phase 4 — Evidence
 
-**3.3 — Forbidden during REFACTOR:**
-- Changing any function signature
-- Adding new behaviour (even "obviously needed" behaviour)
-- Extracting into new files — that is a separate task
-- Modifying test files (except to fix test descriptions/comments)
+**Goal:** Capture the run log and update the manifest before moving to the next task.
 
-**3.4 — The refactor phase is not optional.**
-Even if the implementation is clean, run tests one more time and verify there
-are no `console.log` / `print` / debug statements left in committed code.
+### Procedure
 
----
+1. Write the complete run log to `workflow/<feature>/runs/<run-id>.md` using the `evidence-log-writer` format skill.
+2. Update the task's `phase` in `feature.yaml` from `implementing` to `reviewing`.
+3. Signal the task-reviewer that this task is ready for review.
 
-## Phase 4 — VERIFY: Full suite + quality gates
+Do not mark a task `done` — that is the task-reviewer's responsibility after review passes.
 
-### Purpose
-Confirm the task is complete and has not broken anything else.
+## Handling blockers mid-task
 
-### Rules
+If a blocker is discovered during implementation (missing dependency, design ambiguity, unexpected coupling):
 
-**4.1 — Run the full test suite for the affected module.**
-Not just the new tests — the entire module or feature directory:
-```bash
-npm test -- --testPathPattern=src/features/auth
-```
-This catches regressions in adjacent code.
+1. **Stop.** Do not work around the blocker silently.
+2. Record the blocker in `execution.blockers` in the manifest.
+3. Set the task `phase` to `implementing` (unchanged — the task is not complete).
+4. Note the blocker in the run log under "Notes".
+5. Surface it to the build-orchestrator for resolution before continuing.
 
-**4.2 — Run typecheck if the project uses static types.**
-```bash
-npx tsc --noEmit          # TypeScript
-mypy src/                 # Python
-```
-Zero type errors required. Warnings are acceptable only if they existed before
-this task (check with `git stash && typecheck && git stash pop` if unsure).
+## Scope discipline
 
-**4.3 — Run lint.**
-```bash
-npm run lint              # or eslint / ruff / golangci-lint / etc.
-```
-Zero new lint errors. Pre-existing lint debt is not this task's responsibility
-to fix — but do not introduce new violations.
+Work only within the slice's `context.files_touched`. Files outside this list should not be modified unless:
+- A bug in an adjacent file is directly blocking a test from passing
+- The change is a one-line fix with no design implications
 
-**4.4 — All acceptance criteria must be independently verifiable.**
-Go through the task's acceptance criteria list and verify each one manually or
-via the test output. Check each one off mentally:
-- ✅ "5 tests passing" — confirmed by test output
-- ✅ "migration runs without error" — confirmed by running migration
-- ✅ "returns 400 for invalid input" — confirmed by integration test
+If a larger change to an out-of-scope file is needed, raise it as a blocker rather than expanding scope silently.
 
-**4.5 — Only return `status: "passed"` when all of the following are true:**
-- [ ] All new tests pass
-- [ ] No pre-existing tests broke
-- [ ] Typecheck passes (or was already failing before this task)
-- [ ] Lint passes (zero new violations)
-- [ ] Every acceptance criterion in the task block is satisfied
+## Lane adjustments
 
----
+| Lane | Red phase | Refactor phase |
+|---|---|---|
+| small | 1–2 tests per task, lightweight | Optional — use judgment |
+| standard | Full coverage of acceptance criteria | Required unless green is already clean |
+| epic | Full coverage + edge cases + contract tests for interfaces_produced | Required, with explicit convention alignment |
 
-## Test naming conventions
-
-Use consistent, descriptive test names that read as documentation:
+## Task phase transitions
 
 ```
-describe('<ComponentName>')
-  describe('<methodName>()')
-    it('<does what> when <condition>')
-    it('throws <error> when <condition>')
-    it('returns <value> given <input>')
+planned
+  → implementing   (tdd-builder picks up the task)
+  → reviewing      (red/green/refactor complete, evidence written)
+  → done           (task-reviewer approves)
+  → implementing   (task-reviewer rejects — builder retries)
 ```
 
-Examples:
-```typescript
-describe('MagicTokenRepository')
-  describe('create()')
-    it('inserts a token record with a 1-hour expiry')
-    it('throws DuplicateTokenError when token already exists')
-
-  describe('consume()')
-    it('marks token as used and returns associated user id')
-    it('throws ExpiredTokenError when token is past expiry')
-    it('throws NotFoundError when token does not exist')
-```
-
----
-
-## Test isolation requirements
-
-| Concern | Requirement |
-|---------|-------------|
-| Database | Use a test database or in-memory equivalent; never the dev/prod DB |
-| External APIs | Always mock/stub; never make real network calls from unit tests |
-| Filesystem | Use temp directories; clean up in afterEach |
-| Environment | Set required env vars in test setup, not in `.env` |
-| Time | Use a clock mock for any code that uses `Date.now()` or equivalent |
-| Randomness | Seed or mock random generators for deterministic tests |
-
----
-
-## Coverage expectations
-
-| Layer | Minimum new-code coverage |
-|-------|--------------------------|
-| Data access (repositories) | 90% line coverage |
-| Service / business logic | 85% line coverage |
-| API handlers / controllers | 80% line coverage |
-| UI components | Key interaction paths tested |
-| Config / migrations | Run forward + backward; no line coverage required |
-
-These are minimums for new code written in this task. Do not reduce coverage
-on existing code.
-
----
-
-## Language-specific notes
-
-### TypeScript / JavaScript
-- Prefer `describe`/`it` (Jest / Vitest style) over `test()` top-level
-- Use `expect(value).toBe()` for primitives, `.toEqual()` for objects
-- Mock modules with `vi.mock()` (Vitest) or `jest.mock()` (Jest)
-- Type assertions: prefer `satisfies` over `as` in test setup
-
-### Python
-- Use `pytest` fixtures for setup/teardown
-- Use `pytest.raises()` for error cases
-- Name test functions `test_<behaviour>_when_<condition>`
-
-### Go
-- Use `t.Run()` for sub-tests
-- Use `testify/assert` for assertions
-- Table-driven tests for multiple input cases
-
-### Other languages
-- Follow the project's existing test style — check 2–3 existing test files
-  before writing any tests.
+The builder only transitions `planned → implementing` and `implementing → reviewing`. The reviewer transitions `reviewing → done` or `reviewing → implementing`.
