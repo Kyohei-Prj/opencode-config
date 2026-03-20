@@ -1,96 +1,104 @@
 {
-  "$schema": "https://opencode.ai/config.schema.json",
-  "commands": {
-    "intake": {
-      "path": "commands/intake.md"
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "context7": {
+      "enabled": true,
+      "headers": {
+	"CONTEXT7_API_KEY": ""
+      },
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
     },
-    "shape-slice": {
-      "path": "commands/shape-slice.md"
+    "CopilotKit MCP": {
+      "type": "local",
+      "command": [
+	"npx",
+	"-y",
+	"mcp-remote",
+	"https://mcp.copilotkit.ai"
+      ],
+      "enabled": false,
+      "timeout": 30000
     },
-    "shape": {
-      "path": "commands/shape.md"
+    "deepwiki": {
+      "enabled": false,
+      "type": "remote",
+      "url": "https://mcp.deepwiki.com/mcp"
     },
-    "slice": {
-      "path": "commands/slice.md"
+    "serena": {
+      "command": [
+	"uvx",
+	"--from",
+	"git+https://github.com/oraios/serena",
+	"serena",
+	"start-mcp-server",
+	"--context",
+	"ide-assistant",
+	"--project",
+	"{cwd}",
+	"--enable-web-dashboard",
+	"false"
+      ],
+      "enabled": true,
+      "environment": {
+	"PYTHONUNBUFFERED": "1"
+      },
+      "type": "local"
     },
-    "build": {
-      "path": "commands/build.md"
-    },
-    "verify": {
-      "path": "commands/verify.md"
-    },
-    "resume": {
-      "path": "commands/resume.md"
-    },
-    "fix": {
-      "path": "commands/fix.md"
-    }
   },
-  "agents": {
-    "intake-analyst": {
-      "path": "agents/intake-analyst.md"
-    },
-    "solution-shaper": {
-      "path": "agents/solution-shaper.md"
-    },
-    "slice-planner": {
-      "path": "agents/slice-planner.md"
-    },
-    "build-orchestrator": {
-      "path": "agents/build-orchestrator.md"
-    },
-    "tdd-builder": {
-      "path": "agents/tdd-builder.md"
-    },
-    "task-reviewer": {
-      "path": "agents/task-reviewer.md"
-    },
-    "feature-verifier": {
-      "path": "agents/feature-verifier.md"
-    },
-    "review-consolidator": {
-      "path": "agents/review-consolidator.md"
-    }
-  },
-  "skills": {
-    "behavioral": {
-      "note": "Load at agent definition time \u2014 shape how agents reason",
-      "lane-classifier": {
-        "path": "skills/lane-classifier/SKILL.md"
+  "provider": {
+    "llama.cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama-server (local)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1"
       },
-      "slice-writer": {
-        "path": "skills/slice-writer/SKILL.md"
-      },
-      "tdd-cycle": {
-        "path": "skills/tdd-cycle/SKILL.md"
-      },
-      "task-review-standards": {
-        "path": "skills/task-review-standards/SKILL.md"
-      },
-      "verify-checklist": {
-        "path": "skills/verify-checklist/SKILL.md"
+      "models": {
+        "qwen3.5-27b": {
+          "name": "Qwen3.5-27B",
+          "limit": {
+            "context": 131072,
+            "output": 65536
+          }
+        },
+	"gpt-oss-120b": {
+	  "name": "gpt-oss-120b",
+	  "limit": {
+	    "context": 131072,
+	    "output": 65536
+	  }
+	}
       }
     },
-    "format": {
-      "note": "Load at output-write time \u2014 enforce output structure only",
-      "manifest-writer": {
-        "path": "skills/manifest-writer/SKILL.md"
+    "lemonade": {
+      "options": {
+        "baseURL": "http://localhost:8000/api/v1"
       },
-      "brief-writer": {
-        "path": "skills/brief-writer/SKILL.md"
-      },
-      "evidence-log-writer": {
-        "path": "skills/evidence-log-writer/SKILL.md"
-      },
-      "review-report-writer": {
-        "path": "skills/review-report-writer/SKILL.md"
+      "models": {
+        "gpt-oss-120b-mxfp-GGUF": {
+          "name": "gpt-oss-120b-GGUF",
+          "limit": {
+            "context": 65536,
+            "output": 65536
+          }
+        }
       }
     }
   },
-  "workflow": {
-    "manifest_wins": true,
-    "generated_files_are_readonly": true,
-    "canonical_source": "workflow/<feature>/feature.yaml",
-    "note": "Generated markdown files (brief.md, review.md, runs/*.md) are derived views. If they disagree with feature.yaml, the manifest wins. Never treat generated files as orchestration inputs."
+  "watcher": {
+    "ignore": [
+      "node_modules/**",
+      "dist/**",
+      "build/**",
+      ".git/**",
+      "**/*.min.js",
+      "**/*.map",
+      "**/*.lock",
+      ".venv/**",
+    ]
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true
   }
 }
