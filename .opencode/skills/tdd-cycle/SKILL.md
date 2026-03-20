@@ -19,6 +19,25 @@ red → green → refactor → evidence
 
 Each phase has a distinct goal and exit condition. None are optional.
 
+## Test Code Format
+
+When writing a test code, follow Arrange-Act-Assert (AAA) pattern where possible.
+Example:
+```python
+def test_example() -> None:
+    """Description of the test."""
+
+    # Arrange
+	input_value = 5
+	expected = 10
+	
+	# Act
+	actual = example(input_value)
+	
+	# Assert
+	assert expected == actual
+```
+
 ## Phase 1 — Red
 
 **Goal:** Write a failing test that precisely describes the acceptance criterion being implemented.
