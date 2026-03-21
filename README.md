@@ -70,19 +70,28 @@ That's it. The workflow is self-contained — no external dependencies beyond Op
 ├── opencode.json               ← registers all commands, agents, and skills
 ├── commands/                   ← 8 slash commands (prompt templates)
 ├── agents/                     ← 8 AI subagents
-└── skills/                     ← 9 skill folders, each containing a SKILL.md
-    ├── lane-classifier/
-    ├── slice-writer/
-    ├── tdd-cycle/
-    ├── task-review-standards/
-    ├── verify-checklist/
-    ├── manifest-writer/
-    ├── brief-writer/
-    ├── evidence-log-writer/
-    └── review-report-writer/
+├── skills/                     ← 9 skill folders, each containing a SKILL.md
+│   ├── lane-classifier/
+│   ├── slice-writer/
+│   ├── tdd-cycle/
+│   ├── task-review-standards/
+│   ├── verify-checklist/
+│   ├── manifest-writer/
+│   ├── brief-writer/
+│   ├── evidence-log-writer/
+│   └── review-report-writer/
+└── tools/                      ← custom tools for safe manifest I/O
+    ├── manifest.ts             ← OpenCode tool definitions (5 tools)
+    └── manifest_tool.py        ← Python backend for YAML read/write/validate
 ```
 
-Skills follow the [OpenCode skills format](https://opencode.ai/docs/skills/) — each skill is a folder containing a `SKILL.md` with YAML frontmatter and a prompt body. Agents are [OpenCode subagents](https://opencode.ai/docs/agents/) defined as markdown files with frontmatter (`mode: subagent`, `hidden: true`, `permission` blocks). Commands are [OpenCode custom commands](https://opencode.ai/docs/commands/) — markdown files with frontmatter and a prompt template body.
+Skills follow the [OpenCode skills format](https://opencode.ai/docs/skills/) — each skill is a folder containing a `SKILL.md` with YAML frontmatter and a prompt body. Agents are [OpenCode subagents](https://opencode.ai/docs/agents/) defined as markdown files with frontmatter (`mode: subagent`, `hidden: true`, `permission` blocks). Commands are [OpenCode custom commands](https://opencode.ai/docs/commands/) — markdown files with frontmatter and a prompt template body. The `tools/` directory contains [OpenCode custom tools](https://opencode.ai/docs/custom-tools/) that agents call to safely read and write `feature.yaml` without generating raw YAML.
+
+> **Prerequisite: PyYAML.** The manifest tools require [PyYAML](https://pypi.org/project/PyYAML/) to be installed in your Python environment:
+> ```bash
+> pip install pyyaml
+> ```
+> All agents have `edit: deny` on `feature.yaml` and must go through the manifest tools. The tools validate structure on every write and abort with a clear error if PyYAML is missing.
 
 ---
 
@@ -607,25 +616,28 @@ Skills follow the [OpenCode skills format](https://opencode.ai/docs/skills/): ea
 │   ├── task-reviewer.md
 │   ├── feature-verifier.md
 │   └── review-consolidator.md
-└── skills/
-    ├── lane-classifier/
-    │   └── SKILL.md
-    ├── slice-writer/
-    │   └── SKILL.md
-    ├── tdd-cycle/
-    │   └── SKILL.md
-    ├── task-review-standards/
-    │   └── SKILL.md
-    ├── verify-checklist/
-    │   └── SKILL.md
-    ├── manifest-writer/
-    │   └── SKILL.md
-    ├── brief-writer/
-    │   └── SKILL.md
-    ├── evidence-log-writer/
-    │   └── SKILL.md
-    └── review-report-writer/
-        └── SKILL.md
+├── skills/
+│   ├── lane-classifier/
+│   │   └── SKILL.md
+│   ├── slice-writer/
+│   │   └── SKILL.md
+│   ├── tdd-cycle/
+│   │   └── SKILL.md
+│   ├── task-review-standards/
+│   │   └── SKILL.md
+│   ├── verify-checklist/
+│   │   └── SKILL.md
+│   ├── manifest-writer/
+│   │   └── SKILL.md
+│   ├── brief-writer/
+│   │   └── SKILL.md
+│   ├── evidence-log-writer/
+│   │   └── SKILL.md
+│   └── review-report-writer/
+│       └── SKILL.md
+└── tools/
+    ├── manifest.ts             ← tool definitions (manifest_read/write/set/append/validate)
+    └── manifest_tool.py        ← Python backend; requires PyYAML
 
 workflow/                          ← created when you run /intake
 └── <feature-slug>/
@@ -665,3 +677,7 @@ workflow/                          ← created when you run /intake
 **Feature branch** — `feature/<slug>`. Created automatically on the first slice commit of a build. Each completed slice adds one commit. Fix cycles add fix commits. The branch is ready to open as a pull request once `/verify` returns `approved`.
 
 **Slice commit** — a git commit made by `build-orchestrator` after all tasks in a slice pass review. Uses conventional commit format (`feat(<slice>): <title>`). The SHA is recorded in `execution.slice_commits` and in each affected run history entry.
+
+**Manifest tools** — five [OpenCode custom tools](https://opencode.ai/docs/custom-tools/) (`manifest_read`, `manifest_write_section`, `manifest_set`, `manifest_append`, `manifest_validate`) that agents must use for all `feature.yaml` operations. Defined in `.opencode/tools/manifest.ts`; backed by `.opencode/tools/manifest_tool.py` using PyYAML. Agents have `edit: deny` and cannot write raw YAML directly — all manifest writes go through these tools, which parse, mutate, validate, and atomically serialise the file.
+
+**PyYAML** — the Python library used by `manifest_tool.py` to parse and serialise `feature.yaml`. Must be installed before running the workflow: `pip install pyyaml`. The tool exits with a clear error message if PyYAML is missing.
