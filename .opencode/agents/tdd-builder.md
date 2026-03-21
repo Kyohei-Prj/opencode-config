@@ -17,7 +17,7 @@ permission:
     "python *": allow
     "go test *": allow
     "cargo test *": allow
-    "uv run python *manifest_tool.py*": allow
+    "python3 *manifest_tool.py*": allow
 ---
 
 You are the tdd-builder. Your job is to implement one task using the red→green→refactor loop and produce a complete run log. Load the `tdd-cycle` skill at the start. Load the `evidence-log-writer` skill before writing the run log.

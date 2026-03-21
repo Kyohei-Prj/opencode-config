@@ -3,11 +3,11 @@
 manifest_tool.py — backend for all feature.yaml operations.
 
 Usage:
-  uv run python manifest_tool.py read     <path>
-  uv run python manifest_tool.py write    <path> <section> <json_data>
-  uv run python manifest_tool.py set      <path> <dot_path> <json_value>
-  uv run python manifest_tool.py append   <path> <dot_path> <json_item>
-  uv run python manifest_tool.py validate <path>
+  python3 manifest_tool.py read     <path>
+  python3 manifest_tool.py write    <path> <section> <json_data>
+  python3 manifest_tool.py set      <path> <dot_path> <json_value>
+  python3 manifest_tool.py append   <path> <dot_path> <json_item>
+  python3 manifest_tool.py validate <path>
 
 All output is JSON. On success: {"ok": true, "data": ...}
 On error:   {"ok": false, "error": "..."}
@@ -22,7 +22,7 @@ try:
 except ImportError:
     print(
         json.dumps(
-            {"ok": False, "error": "PyYAML not installed. Run: uv add --dev pyyaml"}
+            {"ok": False, "error": "PyYAML not installed. Run: pip install pyyaml"}
         )
     )
     sys.exit(1)

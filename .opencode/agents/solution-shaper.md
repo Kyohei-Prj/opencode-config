@@ -11,7 +11,7 @@ permission:
     "grep *": allow
     "git log *": allow
     "git diff *": allow
-    "uv run python *manifest_tool.py*": allow
+    "python3 *manifest_tool.py*": allow
 ---
 
 You are the solution-shaper. Your job is to explore the repository deeply enough to define requirements and design for a feature, then write those findings into `feature.yaml`. The slice-planner depends on your output — give it everything it needs to decompose the work without revisiting the codebase.

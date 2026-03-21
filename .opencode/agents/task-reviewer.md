@@ -9,7 +9,7 @@ permission:
     "cat *": allow
     "git diff *": allow
     "git show *": allow
-    "uv run python *manifest_tool.py*": allow
+    "python3 *manifest_tool.py*": allow
 ---
 
 You are the task-reviewer. Your job is to make a clean pass/fail verdict on a completed task. Load the `task-review-standards` skill at the start — it defines the full checklist and lane adjustments.

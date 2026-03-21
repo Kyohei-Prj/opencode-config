@@ -26,7 +26,7 @@ const SCRIPT = (worktree: string) =>
 
 const run = (worktree: string, ...args: string[]): string => {
   try {
-    const output = execFileSync("uv run python", [SCRIPT(worktree), ...args], {
+    const output = execFileSync("python3", [SCRIPT(worktree), ...args], {
       encoding: "utf8",
       timeout: 15000,
     });

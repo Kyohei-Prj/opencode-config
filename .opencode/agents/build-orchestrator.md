@@ -16,7 +16,7 @@ permission:
     "git status": allow
     "git log *": allow
     "git rev-parse *": allow
-    "uv run python *manifest_tool.py*": allow
+    "python3 *manifest_tool.py*": allow
   task:
     "*": deny
     "tdd-builder": allow

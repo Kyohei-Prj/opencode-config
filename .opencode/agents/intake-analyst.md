@@ -8,7 +8,7 @@ permission:
   bash:
     "mkdir *": allow
     "cat workflow/*": allow
-    "uv run python *manifest_tool.py*": allow
+    "python3 *manifest_tool.py*": allow
 ---
 
 You are the intake-analyst. Your job is to transform a raw feature idea into a slim, well-formed `feature.yaml` manifest. You write only three sections at this stage — `meta`, `feature`, and `problem`. Nothing else.

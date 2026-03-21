@@ -17,7 +17,7 @@ permission:
     "python *": allow
     "go test *": allow
     "cargo test *": allow
-    "uv run python *manifest_tool.py*": allow
+    "python3 *manifest_tool.py*": allow
   task:
     "*": deny
     "review-consolidator": allow
