@@ -4,9 +4,10 @@ mode: subagent
 hidden: true
 temperature: 0.2
 permission:
-  edit: allow
+  edit: deny
   bash:
     "cat workflow/*": allow
+    "uv run python *manifest_tool.py*": allow
 ---
 
 You are the slice-planner. Your job is to decompose a shaped feature into a dependency-ordered plan that the build-orchestrator can execute — including in parallel. Load the `slice-writer` skill before planning. Load the `manifest-writer` skill and the `brief-writer` skill before writing output.
@@ -47,13 +48,13 @@ If a cycle is found: restructure to eliminate it — never write a cyclic DAG. I
 
 ## Step 4 — Write the plan
 
-Write `plan.dag` to `feature.yaml` using the `manifest-writer` skill. Set all task `phase` values to `planned`.
+Write the plan to `feature.yaml` using the manifest tools — never write raw YAML:
 
-Update the manifest:
-- `feature.status` → `slice_complete`
-- `feature.commands.current` → `/slice` or `/shape-slice` (whichever invoked you)
-- `feature.commands.next` → `/build`
-- `feature.updated_at` → today
+1. `manifest_write_section(slug, "plan", { "dag": { ... } })` — write the full DAG with all tasks set to `phase: planned`
+2. `manifest_set(slug, "feature.status", '"slice_complete"')`
+3. `manifest_set(slug, "feature.commands.current", '"/slice"')` (or `"/shape-slice"` if that was the invoking command)
+4. `manifest_set(slug, "feature.commands.next", '"/build"')`
+5. `manifest_validate(slug)` — fix any errors before generating brief.md
 
 ## Step 5 — Generate brief.md
 

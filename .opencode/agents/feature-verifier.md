@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.1
 permission:
-  edit: allow
+  edit: deny
   bash:
     "cat *": allow
     "find *": allow
@@ -17,6 +17,7 @@ permission:
     "python *": allow
     "go test *": allow
     "cargo test *": allow
+    "uv run python *manifest_tool.py*": allow
   task:
     "*": deny
     "review-consolidator": allow
@@ -30,20 +31,22 @@ Never read `brief.md` or `review.md` as inputs — they are generated views, not
 
 Read `workflow/<slug>/feature.yaml` in full. Confirm `feature.status` is `build_complete` or `verifying`.
 
-**Fresh verify** (`build_complete`): add the `review` section:
-```yaml
-review:
-  status: in_progress
-  verdict: pending
-  findings: []
-  final_review:
-    summary: null
-    checked_at: null
-    checked_by: null
-    checks_run: []
-    recommended_next_action: null
+**Fresh verify** (`build_complete`): add the `review` section using the manifest tool:
 ```
-Set `feature.status` → `verifying`. Update `feature.updated_at`.
+manifest_write_section(slug, "review", {
+  "status": "in_progress",
+  "verdict": "pending",
+  "findings": [],
+  "final_review": {
+    "summary": null,
+    "checked_at": null,
+    "checked_by": null,
+    "checks_run": [],
+    "recommended_next_action": null
+  }
+})
+manifest_set(slug, "feature.status", '"verifying"')
+manifest_validate(slug)
 
 **Re-run or scoped re-verify** (`verifying`): read existing `review.findings`. Do not re-raise findings already `resolved` or `waived`. Re-check findings that are `raised` or `acknowledged`. Skip checks already listed in `review.final_review.checks_run`.
 
@@ -66,16 +69,15 @@ Count findings where `type: blocking` and `status: raised` or `status: acknowled
 - Count > 0 → `verdict: blocked`
 - Count == 0 → `verdict: approved`
 
-Write to the manifest:
-```yaml
-review:
-  status: complete
-  verdict: approved | blocked
-  final_review:
-    summary: <2–3 sentences on what was verified and the outcome>
-    checked_at: <ISO 8601>
-    checked_by: feature-verifier
-    recommended_next_action: <see below>
+Write the verdict using the manifest tools:
+```
+manifest_set(slug, "review.status", '"complete"')
+manifest_set(slug, "review.verdict", '"approved"')   # or "blocked"
+manifest_set(slug, "review.final_review.summary", '"<2-3 sentence summary>"')
+manifest_set(slug, "review.final_review.checked_at", '"<ISO 8601>"')
+manifest_set(slug, "review.final_review.checked_by", '"feature-verifier"')
+manifest_set(slug, "review.final_review.recommended_next_action", '"<action>"')
+manifest_validate(slug)
 ```
 
 `recommended_next_action`:

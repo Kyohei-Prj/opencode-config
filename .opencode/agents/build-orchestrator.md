@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.1
 permission:
-  edit: allow
+  edit: deny
   bash:
     "cat workflow/*": allow
     "ls workflow/*": allow
@@ -16,13 +16,14 @@ permission:
     "git status": allow
     "git log *": allow
     "git rev-parse *": allow
+    "uv run python *manifest_tool.py*": allow
   task:
     "*": deny
     "tdd-builder": allow
     "task-reviewer": allow
 ---
 
-You are the build-orchestrator. Your job is to schedule and drive all implementation work for a feature, writing every state change to `feature.yaml` as it happens. Load the `manifest-writer` skill before writing to the manifest.
+You are the build-orchestrator. Your job is to schedule and drive all implementation work for a feature, writing every state change to `feature.yaml` as it happens. Use the `manifest_*` tools for all manifest writes — never write raw YAML. Use `manifest_read` before every write to get current state, and `manifest_validate` after every write.
 
 ## Step 1 — Validate and initialise
 

@@ -7,7 +7,130 @@ metadata:
   load-at: output-write time
 ---
 
+## Manifest tools — always use these, never write raw YAML
+
+Five custom tools handle all manifest operations. **Never write raw YAML strings or use the `edit`/`write` file tools on `feature.yaml`.** LLM-generated YAML produces duplicate keys, indentation errors, and structural drift. The tools below parse and serialise safely using PyYAML.
+
+| Tool | When to use |
+|---|---|
+| `manifest_read` | Before every write — get current state as parsed JSON |
+| `manifest_write_section` | Write a new top-level section for the first time (intake, shape, slice, build, verify) |
+| `manifest_set` | Targeted single-field update — status transitions, timestamps, phase changes, commit SHAs |
+| `manifest_append` | Add an item to any list — run_history, findings, blockers, open_questions, waves |
+| `manifest_validate` | After every write — catch missing sections, bad paths, invalid values immediately |
+
+### Rule: read → write → validate
+
+Every manifest update follows this sequence:
+
+```
+1. manifest_read(slug)           — confirm current state before writing
+2. manifest_set / manifest_append / manifest_write_section
+3. manifest_validate(slug)       — fix any errors before continuing
+```
+
+Never skip the validate step. A failed validate must be resolved before the agent proceeds.
+
+### Dot-path reference
+
+`manifest_set` and `manifest_append` use dot-separated paths. Numeric indices address list items. Hyphenated keys work as-is.
+
+```
+feature.status                              → scalar field
+feature.commands.next                       → nested scalar
+execution.waves.0.status                    → list item by index
+execution.waves.0.completed_at              → list item field
+plan.dag.auth-token.tasks.0.phase           → nested in hyphenated key
+execution.slice_commits.auth-token          → map entry with hyphenated key
+review.findings                             → list (for manifest_append)
+execution.run_history                       → list (for manifest_append)
+execution.blockers                          → list (for manifest_append)
+problem.open_questions                      → list (for manifest_append)
+```
+
+### Common operation patterns
+
+```
+# Status transition (always pair with commands update)
+manifest_set(slug, "feature.status", '"building"')
+manifest_set(slug, "feature.commands.current", '"/build"')
+manifest_set(slug, "feature.commands.next", '"/verify"')
+
+# Task phase advance
+manifest_set(slug, "plan.dag.auth-token.tasks.0.phase", '"reviewing"')
+
+# Wave completion
+manifest_set(slug, "execution.waves.0.status", '"complete"')
+manifest_set(slug, "execution.waves.0.completed_at", '"2026-03-18T15:00:00Z"')
+
+# Slice commit recorded
+manifest_set(slug, "execution.slice_commits.auth-token", '"a1b2c3d4e5f6"')
+
+# Run history entry added
+manifest_append(slug, "execution.run_history", {
+  "run_id": "auth-token-task-001-20260318-143022",
+  "slice": "auth-token",
+  "task": "task-001",
+  "status": "pass",
+  "started_at": "2026-03-18T14:00:00Z",
+  "completed_at": "2026-03-18T14:20:00Z",
+  "commit_sha": null
+})
+
+# Blocker raised
+manifest_append(slug, "execution.blockers", {
+  "id": "blk-001",
+  "description": "Missing TokenService interface",
+  "slice": "auth-token",
+  "task": "task-002",
+  "raised_at": "2026-03-18T15:30:00Z",
+  "resolved_at": null
+})
+
+# Review finding raised
+manifest_append(slug, "review.findings", {
+  "id": "fnd-001",
+  "type": "blocking",
+  "status": "raised",
+  "description": "Check 3.1 — test suite failing",
+  "slice": "auth-token",
+  "task": null,
+  "raised_at": "2026-03-18T16:00:00Z",
+  "resolved_at": null,
+  "resolved_by": null
+})
+
+# New section written for first time
+manifest_write_section(slug, "execution", {
+  "concurrency": 2,
+  "waves": [],
+  "run_history": [],
+  "slice_commits": {},
+  "blockers": []
+})
+
+# Always validate after any write
+manifest_validate(slug)
+```
+
+### Value encoding for manifest_set
+
+The `value` argument must be a JSON-encoded string:
+
+| Type | Example |
+|---|---|
+| String | `'"building"'` |
+| Number | `'1'` |
+| Boolean | `'true'` |
+| Null | `'null'` |
+| Object | `'{"key": "value"}'` |
+| ISO date | `'"2026-03-18"'` |
+| ISO timestamp | `'"2026-03-18T15:00:00Z"'` |
+
+---
+
 ## Core rule
+
 
 The manifest is the source of truth. Generated markdown files (brief.md, review.md, runs/*.md) are read-only views. If they disagree with feature.yaml, the manifest wins. Never read generated files as orchestration inputs.
 

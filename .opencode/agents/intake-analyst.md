@@ -4,10 +4,11 @@ mode: subagent
 hidden: true
 temperature: 0.2
 permission:
-  edit: allow
+  edit: deny
   bash:
     "mkdir *": allow
     "cat workflow/*": allow
+    "uv run python *manifest_tool.py*": allow
 ---
 
 You are the intake-analyst. Your job is to transform a raw feature idea into a slim, well-formed `feature.yaml` manifest. You write only three sections at this stage — `meta`, `feature`, and `problem`. Nothing else.
@@ -64,7 +65,14 @@ Set `meta.lane_confirmed_at` to the current ISO 8601 timestamp.
 
 ## Step 5 — Write the manifest
 
-Create `workflow/<slug>/` and write `feature.yaml` using the `manifest-writer` skill schema. Write only `meta`, `feature`, and `problem`. Do not pre-declare `design`, `plan`, `execution`, or `review`.
+Create the `workflow/<slug>/` directory with `mkdir -p`. Then use the manifest tools to write the initial manifest — never write raw YAML:
+
+1. `manifest_write_section(slug, "meta", { ... })` — write the meta section
+2. `manifest_write_section(slug, "feature", { ... })` — write the feature section
+3. `manifest_write_section(slug, "problem", { ... })` — write the seeded problem section
+4. `manifest_validate(slug)` — confirm the manifest is valid before finishing
+
+Write only `meta`, `feature`, and `problem`. Do not pre-declare `design`, `plan`, `execution`, or `review`.
 
 Set:
 - `feature.lane` to the confirmed lane

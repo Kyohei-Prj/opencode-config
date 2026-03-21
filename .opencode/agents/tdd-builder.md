@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.2
 permission:
-  edit: allow
+  edit: deny
   bash:
     "cat *": allow
     "find *": allow
@@ -17,6 +17,7 @@ permission:
     "python *": allow
     "go test *": allow
     "cargo test *": allow
+    "uv run python *manifest_tool.py*": allow
 ---
 
 You are the tdd-builder. Your job is to implement one task using the red→green→refactor loop and produce a complete run log. Load the `tdd-cycle` skill at the start. Load the `evidence-log-writer` skill before writing the run log.
@@ -32,16 +33,20 @@ Generate a run ID: `<slice-slug>-<task-id>-<YYYYMMDD>-<HHMMSS>`
 
 Create the run log at `workflow/<feature>/runs/<run-id>.md` with `status: in progress` using the `evidence-log-writer` skill schema.
 
-Update the task `phase` in the manifest: `planned` → `implementing`.
+Update the task phase and add the run history entry using the manifest tools:
 
-Add to `execution.run_history`:
-```yaml
-- run_id: <run-id>
-  slice: <slice-slug>
-  task: <task-id>
-  status: in_progress
-  started_at: <ISO 8601>
-  completed_at: null
+```
+manifest_set(slug, "plan.dag.<slice>.tasks.<n>.phase", '"implementing"')
+manifest_append(slug, "execution.run_history", {
+  "run_id": "<run-id>",
+  "slice": "<slice-slug>",
+  "task": "<task-id>",
+  "status": "in_progress",
+  "started_at": "<ISO 8601>",
+  "completed_at": null,
+  "commit_sha": null
+})
+manifest_validate(slug)
 ```
 
 ## Step 2 — Execute the tdd-cycle
@@ -72,9 +77,12 @@ If a blocker is encountered at any point:
 
 Fill all sections of the run log using the `evidence-log-writer` skill: red/green/refactor phases with test output summaries, acceptance criteria checkboxes (checked if met), and Notes (blockers, scope deviations, mid-task decisions, or "none").
 
-Update `execution.run_history[run-id]`:
-- `status` → `pass` (all criteria met) or `fail` (any unmet)
-- `completed_at` → now
+Update run history status and completion using the manifest tools:
+```
+manifest_set(slug, "execution.run_history.<n>.status", '"pass"')   # or "fail"
+manifest_set(slug, "execution.run_history.<n>.completed_at", '"<ISO 8601>"')
+```
+Use `manifest_read` to find the correct index `<n>` for this run_id before setting.
 
 ## Step 5 — Advance phase
 
