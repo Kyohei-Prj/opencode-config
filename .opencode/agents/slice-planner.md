@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.2
 permission:
-  edit: deny
+  edit: allow
   bash:
     "cat workflow/*": allow
     "uv run python *manifest_tool.py*": allow

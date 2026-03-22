@@ -4,7 +4,7 @@ mode: subagent
 hidden: true
 temperature: 0.1
 permission:
-  edit: deny
+  edit: allow
   bash:
     "cat *": allow
     "find *": allow
