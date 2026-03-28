@@ -1,6 +1,6 @@
 ---
 name: tdd-cycle
-description: Implement a task using red-green-refactor-evidence. Write a failing test first, implement the minimum to pass, refactor without changing behaviour, then capture the run log. Each phase has a distinct exit condition. Stop and raise a blocker rather than working around any obstacle silently.
+description: Classify each task into one of three implementation strategies — full TDD, verify-after, or no-test — then execute the appropriate procedure. Prevents wasteful test-writing for scaffolding, dependency installation, and boilerplate while preserving rigorous TDD for all business logic and behaviour.
 compatibility: opencode
 metadata:
   used-by: tdd-builder
@@ -9,161 +9,171 @@ metadata:
 
 ## What I do
 
-Define the red → green → refactor → evidence loop used to implement each task. Every task must produce a passing test suite and a completed run log before it is considered done.
+Define how to implement each task by first classifying it, then executing the right procedure for that class. Not every task warrants a failing test written before the code. The classification step is mandatory — skip it and you will either write useless tests for scaffolding or miss tests for real logic.
 
-## The loop
+## Phase 0 — Classify the task
 
-```
-red → green → refactor → evidence
-```
+Read the task `description` and `acceptance_criteria` before writing a single line of code. Apply this decision tree:
 
-Each phase has a distinct goal and exit condition. None are optional.
+**Does the task have verifiable behaviour?**
+Behaviour means: outputs that could be wrong, state transitions that could fail, contracts that could be violated, error conditions that could be missed.
 
-## Test Code Format
+Examples of behaviour: "token is signed with RS256", "returns 401 when unauthenticated", "calculates total including tax", "rejects duplicate email on registration".
 
-When writing a test code, follow Arrange-Act-Assert (AAA) pattern where possible.
-Example:
-```python
-def test_example() -> None:
-    """Description of the test."""
+→ If yes: **Strategy 1 — Full TDD**
 
-    # Arrange
-	input_value = 5
-	expected = 10
-	
-	# Act
-	actual = example(input_value)
-	
-	# Assert
-	assert expected == actual
-```
+**Or is the task primarily wiring, configuration, or integration plumbing?**
+Wiring means: connecting existing pieces, mounting routes, registering middleware, configuring a library, bootstrapping a service. The output is structural or connective, not behavioural. Writing a test first is impractical because the thing being tested can't exist until the wiring is in place.
 
-## Phase 1 — Red
+Examples: "mount the auth router at /api/v1/auth", "initialise the logger with the config from env", "register the email service with the DI container", "connect the database pool on startup".
 
-**Goal:** Write a failing test that precisely describes the acceptance criterion being implemented.
+→ If yes: **Strategy 2 — Verify-after**
 
-### Procedure
+**Or is the task pure scaffolding with no logic?**
+Scaffolding means: creating directory structures, installing packages, generating boilerplate files, writing configuration files that have no runtime logic, creating a README or changelog entry.
 
-1. Read the task's `acceptance_criteria` from the manifest.
-2. For each criterion, write the minimum test that would pass if and only if that criterion is met.
-3. Run the tests. Confirm they fail for the right reason — not a compile error, not a missing import, but a logical failure that the implementation will fix.
-4. If a test fails for the wrong reason (import error, syntax error, missing fixture), fix the test infrastructure first. Do not proceed to green with a test that fails for the wrong reason.
+The distinguishing question: *would a test for this catch a real bug, or would it just assert that a script ran?* If the latter, no test is needed.
 
-### What makes a good red test
+Examples: "create the src/auth/ directory structure", "install jest and ts-jest", "add express app boilerplate to app.ts", "create .env.example with documented variables", "add eslint config".
 
-- Tests one thing. One assertion or one logical group of related assertions.
-- Fails with a message that names what's missing ("expected token to be signed with RS256, got HS256").
-- Does not test implementation details — tests the contract (inputs → outputs, side effects).
-- Uses real types and interfaces where they exist. Stubs and mocks are acceptable for external dependencies (network, filesystem, clock) but not for in-process logic.
+→ If yes: **Strategy 3 — No test**
 
-### Exit condition
+**When in doubt:**
+- Between Strategy 1 and 2 → use Strategy 1
+- Between Strategy 2 and 3 → use Strategy 2
+- Strategy 3 requires that acceptance criteria describe *existence or presence*, not *behaviour*
 
-At least one failing test per acceptance criterion. Record test names and failure messages in the run log under "Red — test written".
+Record the chosen strategy and rationale in the run log under "Strategy". The task-reviewer validates this choice.
 
-## Phase 2 — Green
+---
 
-**Goal:** Write the minimum implementation to make the failing tests pass. Nothing more.
+## Strategy 1 — Full TDD
 
-### Procedure
+For tasks with verifiable behaviour. This is the default for all business logic, domain rules, API handlers, validation, data transformations, and state transitions.
 
-1. Implement only what is needed to satisfy the failing tests.
-2. Do not add error handling, logging, configuration, or features not covered by a test. These come in refactor or in a later task.
-3. Run the full test suite — not just the new tests. No regressions allowed.
-4. If a regression is introduced, fix it before moving to refactor.
+### Red
 
-### Discipline
+1. Read `acceptance_criteria` from the manifest.
+2. For each criterion, write the minimum test that passes if and only if that criterion is met.
+3. Run the tests. Confirm they fail for the right reason — a logical failure, not a compile error or missing import. Fix test infrastructure issues before proceeding.
 
-Green phase is about correctness, not cleanliness. The code is allowed to be ugly. The only requirement is that the tests pass.
+**What makes a good red test:**
+- Tests one thing — one assertion or one logical group
+- Fails with a message naming what's missing ("expected RS256, got HS256")
+- Tests the contract (inputs → outputs, side effects), not implementation details
+- Uses real types and interfaces where they exist; stubs only for external dependencies (network, filesystem, clock)
 
-**Do not:**
-- Add untested behaviour "while you're in here"
-- Refactor existing code in the same commit as making tests pass
-- Leave tests skipped or marked as pending
+Exit: at least one failing test per acceptance criterion. Record test names and failure messages in the run log.
 
-### Exit condition
+### Green
 
-All new tests pass. No existing tests regressed. Record the summary test output in the run log under "Green — implementation".
+1. Implement only what is needed to make the failing tests pass. Nothing more.
+2. Do not add error handling, logging, or features not covered by a test.
+3. Run the full test suite — no regressions allowed.
 
-## Phase 3 — Refactor
+Exit: all new tests pass, no regressions. Record summary test output in the run log.
 
-**Goal:** Improve the structure of the code without changing its behaviour.
+### Refactor
 
-### Procedure
+1. Re-read the implementation. Identify: duplication, unclear naming, convention violations.
+2. Refactor one concern at a time, running tests after each change.
+3. If refactoring reveals a missing test, write it first.
 
-1. Re-read the green implementation with fresh eyes.
-2. Identify: duplication, unclear naming, violation of project conventions, unnecessary complexity.
-3. Refactor one concern at a time. Run tests after each change.
-4. If refactoring reveals a missing test (behaviour that was implicitly assumed), write the test first — you've found a red phase that was missed.
+Skip only if the green implementation is genuinely already clean — record "none" explicitly.
 
-### What counts as refactor
+Exit: tests still pass, code meets project conventions.
 
-- Rename variables, functions, or types for clarity
-- Extract a well-named helper function
-- Consolidate duplicated logic
-- Align with project conventions (naming, file structure, import style)
-- Remove dead code introduced during green
+---
 
-### What does not count as refactor (do these in a separate task)
+## Strategy 2 — Verify-after
 
-- Adding new behaviour
-- Changing error handling strategy
-- Changing the public interface of a component
-- Performance optimisation (unless a test covers it)
+For wiring, configuration, and integration plumbing where writing a test first is impractical.
 
-### When to skip
+### Implement
 
-If the green implementation is already clean — genuinely, not as an excuse — record "none" in the run log and move on. Forced refactoring for its own sake is waste.
+Write the wiring code directly. Follow existing patterns in the codebase for how similar connections are made.
 
-### Exit condition
+### Verify
 
-Tests still pass. Run log updated under "Refactor". Code meets project conventions.
+Write a lightweight smoke or integration test that confirms the wiring is observable:
+- A server that starts without error and responds to a health check
+- A module that imports and exposes the expected exports
+- A database pool that connects and executes a trivial query
+- A middleware that passes a request through the correct handler chain
 
-## Phase 4 — Evidence
+The test must be meaningful — it should fail if the wiring is broken. A test that always passes regardless of the implementation is not a verify-after test; it is a useless test. If you cannot write a test that would catch a real misconfiguration, use Strategy 3 instead.
 
-**Goal:** Capture the run log and update the manifest before moving to the next task.
+### Refactor
 
-### Procedure
+Same as Strategy 1's refactor phase.
 
-1. Write the complete run log to `workflow/<feature>/runs/<run-id>.md` using the `evidence-log-writer` format skill.
-2. Update the task's `phase` in `feature.yaml` from `implementing` to `reviewing`.
-3. Signal the task-reviewer that this task is ready for review.
+Exit: smoke test passes, wiring is confirmed, code is clean.
 
-Do not mark a task `done` — that is the task-reviewer's responsibility after review passes.
+---
 
-## Handling blockers mid-task
+## Strategy 3 — No test
 
-If a blocker is discovered during implementation (missing dependency, design ambiguity, unexpected coupling):
+For pure scaffolding with no verifiable logic.
 
-1. **Stop.** Do not work around the blocker silently.
-2. Record the blocker in `execution.blockers` in the manifest.
-3. Set the task `phase` to `implementing` (unchanged — the task is not complete).
-4. Note the blocker in the run log under "Notes".
-5. Surface it to the build-orchestrator for resolution before continuing.
+### Implement
 
-## Scope discipline
+Create the directories, install the packages, generate the boilerplate, write the config files. Follow project conventions.
 
-Work only within the slice's `context.files_touched`. Files outside this list should not be modified unless:
-- A bug in an adjacent file is directly blocking a test from passing
-- The change is a one-line fix with no design implications
+### Document
 
-If a larger change to an out-of-scope file is needed, raise it as a blocker rather than expanding scope silently.
+In the run log Notes section, write:
+- What was created or installed
+- Why no test was written (reference the classification: acceptance criteria describe existence/presence, not behaviour)
+- Any decisions made (e.g. version pinned, directory layout chosen)
+
+This documentation is mandatory. An empty Notes section for a Strategy 3 task is a run log failure.
+
+Exit: task is done, Notes are complete. No test output — the run log records "Strategy 3 — no test" in place of the TDD cycle section.
+
+---
+
+## Phase 4 — Evidence (all strategies)
+
+1. Write the complete run log using the `evidence-log-writer` skill. The TDD cycle section format depends on strategy — see that skill for the conditional template.
+2. Update the task `phase` from `implementing` to `reviewing`.
+3. Report to build-orchestrator.
+
+---
+
+## Handling blockers (all strategies)
+
+If a blocker is discovered during implementation:
+
+1. Stop — do not work around it silently.
+2. Record in `execution.blockers`.
+3. Note in the run log under Notes.
+4. Update run history status to `blocked`.
+5. Surface to build-orchestrator. Do not advance the task phase.
+
+---
+
+## Scope discipline (all strategies)
+
+Work only within `context.files_touched`. If a file outside this list must be modified, record it in the run log and flag it for the task-reviewer. Never silently expand scope.
+
+---
 
 ## Lane adjustments
 
-| Lane | Red phase | Refactor phase |
-|---|---|---|
-| small | 1–2 tests per task, lightweight | Optional — use judgment |
-| standard | Full coverage of acceptance criteria | Required unless green is already clean |
-| epic | Full coverage + edge cases + contract tests for interfaces_produced | Required, with explicit convention alignment |
+| Lane | Strategy 1 red phase | Strategy 1 refactor | Strategy 2 verify test |
+|---|---|---|---|
+| small | 1–2 tests per criterion, lightweight | Optional | Smoke test only |
+| standard | Full criterion coverage | Required unless already clean | Meaningful integration test |
+| epic | Full coverage + edge cases + contract tests for interfaces_produced | Required, convention-aligned | Full integration test |
+
+---
 
 ## Task phase transitions
 
 ```
 planned
   → implementing   (tdd-builder picks up the task)
-  → reviewing      (red/green/refactor complete, evidence written)
+  → reviewing      (implementation complete, evidence written)
   → done           (task-reviewer approves)
   → implementing   (task-reviewer rejects — builder retries)
 ```
-
-The builder only transitions `planned → implementing` and `implementing → reviewing`. The reviewer transitions `reviewing → done` or `reviewing → implementing`.
